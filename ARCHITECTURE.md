@@ -2,6 +2,12 @@
 
 The Grimoire — a local AI agent operating system with one shared knowledge base underneath multiple coding agents.
 
+## Store engine decision (Phase 0, 2026-06-13)
+
+**Decided: SQLite + sqlite-vec** (768-dim vectors), Python in-process. Backend is Python only (FastMCP gateway + FastAPI in one process).
+
+Reason. The current scope is a single agent at a time, retrieval that traverses 1-2 hops out from a project hub, and a heavy-year ceiling around 25k vectors. SQLite covers all of that with zero ops, single-file durability, and a backup that is a verified file copy. sqlite-vec is verified in this environment: a `vec0` virtual table with a TEXT primary key and `float[768]` embeddings returns correct KNN results. SurrealDB stays the stronger long-term fit once traversal gets richer or the system goes genuinely multi-agent (see "Built to evolve" below), and it stays open as a future migration because the repository layer is the only module that touches the store engine. Per the build plan: pick, record, move.
+
 ## The core idea
 
 Do not wire the agents together. Build one knowledge service underneath them. Claude Code, Codex CLI, and Google Antigravity stay fully independent; each speaks MCP to a single gateway, and the gateway reads and writes one local store. Adding a fourth agent later means pointing it at the gateway, nothing more.

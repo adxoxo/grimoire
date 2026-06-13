@@ -1,0 +1,28 @@
+[project]
+name = "grimoire"
+version = "0.1.0"
+description = "The Grimoire: a local shared knowledge base served to coding agents over one MCP gateway."
+requires-python = ">=3.12"
+# Phase 0 dependencies only. The FastMCP gateway + FastAPI server stack
+# (fastmcp, fastapi, uvicorn) is added in Phase 2 when there is server code to run.
+dependencies = [
+    "sqlite-vec>=0.1.9",
+    "httpx>=0.28",
+    "pydantic-settings>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["grimoire*"]
+
+[tool.setuptools.package-data]
+grimoire = ["store/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
