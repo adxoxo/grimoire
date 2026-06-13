@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# Grimoire store data and backups (the knowledge base never goes in git)
+data/
+backups/
+*.db
+*.db-wal
+*.db-shm
+
+# Local config
+.env
