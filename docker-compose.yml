@@ -1,0 +1,37 @@
+# Bundles the API (which also serves the dashboard and the n8n capture endpoint) and
+# n8n. The store is the SQLite file on the ./data volume, not a service. Embeddings/LLM
+# run on Ollama on the host (GPU), reached via host.docker.internal.
+#
+# The MCP gateway is NOT a service here: it is a stdio server launched per-agent by the
+# MCP client (see .mcp.json), not a long-running daemon.
+services:
+  grimoire:
+    build: .
+    ports:
+      - "8731:8731"
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups
+    environment:
+      GRIMOIRE_DB_PATH: /app/data/grimoire.db
+      GRIMOIRE_PROVIDER: ollama
+      GRIMOIRE_OLLAMA_URL: http://host.docker.internal:11434
+      GRIMOIRE_EMBED_MODEL: nomic-embed-text
+      GRIMOIRE_LLM_MODEL: llama3.2
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    environment:
+      # n8n posts capture payloads to http://grimoire:8731/api/capture on this network.
+      N8N_SECURE_COOKIE: "false"
+    restart: unless-stopped
+
+volumes:
+  n8n_data:
