@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Grimoire - Home</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800&amp;family=Spectral:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary": "#39300b",
+                        "primary-container": "#e3d3a0",
+                        "bg-page": "#0c0b14",
+                        "outline": "#969083",
+                        "outline-variant": "#4b463b",
+                        "border-default": "#29263f",
+                        "surface-variant": "#35333e",
+                        "inverse-primary": "#695e35",
+                        "surface-container-low": "#1c1a24",
+                        "primary-fixed": "#f2e2ae",
+                        "on-primary-fixed": "#221b00",
+                        "on-tertiary-fixed-variant": "#5a4300",
+                        "on-primary-fixed-variant": "#51461f",
+                        "surface-container": "#201e28",
+                        "surface": "#13121c",
+                        "on-background": "#e5e0ee",
+                        "surface-container-high": "#2a2933",
+                        "surface-container-highest": "#35333e",
+                        "on-secondary-container": "#372700",
+                        "primary-fixed-dim": "#d5c694",
+                        "on-secondary-fixed": "#251a00",
+                        "surface-dim": "#13121c",
+                        "rune-tome": "#5b8dd9",
+                        "tertiary-fixed-dim": "#ecc158",
+                        "bg-surface": "#16142b",
+                        "on-tertiary-container": "#735700",
+                        "background": "#13121c",
+                        "surface-container-lowest": "#0e0d16",
+                        "rune-chronicle": "#d98b4a",
+                        "border-subtle": "#1d1a2e",
+                        "inverse-on-surface": "#312f39",
+                        "secondary-fixed-dim": "#eec054",
+                        "error-container": "#93000a",
+                        "on-surface": "#e5e0ee",
+                        "rune-quest": "#d4a93f",
+                        "error": "#ffb4ab",
+                        "tertiary-fixed": "#ffdf99",
+                        "primary": "#ffefc0",
+                        "tertiary-container": "#face63",
+                        "bg-panel": "#0e0d16",
+                        "on-tertiary": "#3f2e00",
+                        "on-tertiary-fixed": "#251a00",
+                        "tertiary": "#ffeece",
+                        "surface-tint": "#d5c694",
+                        "secondary-fixed": "#ffdf9b",
+                        "on-secondary-fixed-variant": "#5b4300",
+                        "on-error": "#690005",
+                        "secondary-container": "#b38b22",
+                        "on-error-container": "#ffdad6",
+                        "surface-bright": "#3a3842",
+                        "on-primary-container": "#665a32",
+                        "on-secondary": "#3f2e00",
+                        "secondary": "#eec054",
+                        "text-muted": "#9b96b8",
+                        "on-surface-variant": "#cdc6b7",
+                        "inverse-surface": "#e5e0ee",
+                        "status-error": "#ff4d4d",
+                        "rune-entity": "#9d6bd9",
+                        "text-tertiary": "#6b6789"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "lg": "40px",
+                        "base": "8px",
+                        "margin": "32px",
+                        "gutter": "24px",
+                        "sm": "12px",
+                        "xl": "64px",
+                        "md": "24px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Spectral"],
+                        "headline-md": ["Cinzel"],
+                        "headline-lg": ["Cinzel"],
+                        "label-md": ["Spectral"],
+                        "headline-lg-mobile": ["Cinzel"],
+                        "headline-sm": ["Cinzel"],
+                        "body-md": ["Spectral"],
+                        "display-lg": ["Cinzel"],
+                        "body-sm": ["Spectral"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", { "lineHeight": "1.6", "fontWeight": "300" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "label-md": ["12px", { "lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "1.2", "fontWeight": "600" }],
+                        "headline-sm": ["18px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "0.05em", "fontWeight": "700" }],
+                        "body-sm": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Node Glows */
+        .glow-quest { box-shadow: 0 0 15px 2px rgba(212, 169, 63, 0.6); }
+        .glow-tome { box-shadow: 0 0 15px 2px rgba(91, 141, 217, 0.6); }
+        .glow-chronicle { box-shadow: 0 0 15px 2px rgba(217, 139, 74, 0.6); }
+        .glow-entity { box-shadow: 0 0 15px 2px rgba(157, 107, 217, 0.6); }
+
+        /* Pulsing Animation for unreviewed nodes */
+        @keyframes pulse-quest { 0% { box-shadow: 0 0 10px rgba(212, 169, 63, 0.3); } 50% { box-shadow: 0 0 25px rgba(212, 169, 63, 0.8); } 100% { box-shadow: 0 0 10px rgba(212, 169, 63, 0.3); } }
+        @keyframes pulse-tome { 0% { box-shadow: 0 0 10px rgba(91, 141, 217, 0.3); } 50% { box-shadow: 0 0 25px rgba(91, 141, 217, 0.8); } 100% { box-shadow: 0 0 10px rgba(91, 141, 217, 0.3); } }
+        @keyframes pulse-chronicle { 0% { box-shadow: 0 0 10px rgba(217, 139, 74, 0.3); } 50% { box-shadow: 0 0 25px rgba(217, 139, 74, 0.8); } 100% { box-shadow: 0 0 10px rgba(217, 139, 74, 0.3); } }
+        @keyframes pulse-entity { 0% { box-shadow: 0 0 10px rgba(157, 107, 217, 0.3); } 50% { box-shadow: 0 0 25px rgba(157, 107, 217, 0.8); } 100% { box-shadow: 0 0 10px rgba(157, 107, 217, 0.3); } }
+
+        .pulse-quest { animation: pulse-quest 3s infinite; }
+        .pulse-tome { animation: pulse-tome 3s infinite; }
+        .pulse-chronicle { animation: pulse-chronicle 3s infinite; }
+        .pulse-entity { animation: pulse-entity 3s infinite; }
+
+        /* Edges */
+        .edge-quest { stroke: #d4a93f; opacity: 0.4; }
+        .edge-tome { stroke: #5b8dd9; opacity: 0.4; }
+        .edge-chronicle { stroke: #d98b4a; opacity: 0.4; }
+        .edge-entity { stroke: #9d6bd9; opacity: 0.4; }
+    </style>
+</head>
+<body class="bg-bg-page text-on-surface min-h-screen overflow-hidden flex font-body-md selection:bg-rune-quest selection:text-on-primary">
+<!-- TopNavBar (Mobile) -->
+<nav class="md:hidden bg-bg-page dark:bg-bg-page fixed top-0 w-full z-50 flex justify-between items-center px-margin h-20 border-b border-border-default shadow-[0_0_15px_0px_rgba(212,169,63,0.1)]">
+<div class="font-display-lg text-display-lg text-primary tracking-widest uppercase truncate max-w-[50%]">The Grimoire</div>
+<div class="flex items-center gap-4">
+<button aria-label="Search" class="text-primary hover:text-on-surface-variant transition-colors duration-300 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button aria-label="Menu" class="text-text-muted hover:text-on-surface-variant transition-colors duration-300 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+</div>
+</nav>
+<!-- SideNavBar (Desktop) -->
+<nav class="hidden md:flex bg-surface-container-lowest dark:bg-surface-container-lowest docked left-0 h-full w-64 border-r border-border-default flex-col pt-24 pb-8 z-40 fixed top-0">
+<!-- Header -->
+<div class="px-6 mb-8 flex flex-col items-center border-b border-border-subtle pb-6">
+<div class="w-16 h-16 rounded-full border border-rune-quest p-1 mb-4 relative group">
+<div class="absolute inset-0 rounded-full glow-quest opacity-50 group-hover:opacity-100 transition-opacity duration-300"></div>
+<img alt="Archivist Sigil" class="w-full h-full rounded-full object-cover bg-surface-variant" data-alt="A dark arcane avatar portrait of an archivist, featuring subtle gold filigree framing, dark moody lighting, glowing blue eyes, and a mysterious authoritative presence, rendered in high-fidelity 3D style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxkQAG5Gj_DKmzkkDvwVb1uBoFjaVGATAhGalFGS73E1G5-d6L60FEtXTQKCk6o0MPu8nqo7edTYTyc17w8d7oYHRzcqviYIMzqaC0W3B_MBCuMmhf8iy3rLQO2JMnDC1cT8VVznwHYiTAVr0iY9MzjfYiYkSu9uzjznGI5uwIkank8SQSGqSPFZjgWy-JxPCdb6OXu38ALQjdHJHlkEvTInsqoH1xoG7kI4dO6otreABHSmqYv7laFfnQ8vzp-teO1ZsmAngql0g"/>
+</div>
+<h2 class="font-headline-md text-headline-md text-primary text-center">The Archivist</h2>
+<p class="font-label-md text-label-md text-text-tertiary mt-1">Level IV Seeker</p>
+</div>
+<!-- Navigation Tabs -->
+<div class="flex-1 overflow-y-auto w-full">
+<ul class="space-y-2">
+<li>
+<a class="flex items-center gap-4 py-3 text-primary font-bold border-l-4 border-primary bg-surface-container-high pl-4 hover:bg-surface-container transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined text-rune-quest" data-icon="account_tree">account_tree</span>
+<span class="font-headline-sm text-headline-sm">Quest Lines</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 py-3 text-text-muted hover:text-on-surface pl-4 hover:bg-surface-container transition-all duration-200 hover:translate-x-1 group" href="#">
+<span class="material-symbols-outlined text-rune-tome opacity-70 group-hover:opacity-100 transition-opacity" data-icon="menu_book">menu_book</span>
+<span class="font-headline-sm text-headline-sm">Tomes</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 py-3 text-text-muted hover:text-on-surface pl-4 hover:bg-surface-container transition-all duration-200 hover:translate-x-1 group" href="#">
+<span class="material-symbols-outlined text-rune-chronicle opacity-70 group-hover:opacity-100 transition-opacity" data-icon="auto_stories">auto_stories</span>
+<span class="font-headline-sm text-headline-sm">Chronicles</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 py-3 text-text-muted hover:text-on-surface pl-4 hover:bg-surface-container transition-all duration-200 hover:translate-x-1 group" href="#">
+<span class="material-symbols-outlined text-rune-entity opacity-70 group-hover:opacity-100 transition-opacity" data-icon="token">token</span>
+<span class="font-headline-sm text-headline-sm">Runes</span>
+</a>
+</li>
+</ul>
+</div>
+<!-- CTA & Footer Tabs -->
+<div class="px-6 mt-auto flex flex-col gap-4">
+<button class="w-full py-2 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(227,211,160,0.3)] transition-all duration-300 font-headline-sm text-headline-sm flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                Scribe New Node
+            </button>
+<div class="border-t border-border-subtle pt-4 space-y-2">
+<a class="flex items-center gap-4 py-2 text-text-muted hover:text-on-surface transition-colors duration-200" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-4 py-2 text-text-muted hover:text-on-surface transition-colors duration-200" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="fort">fort</span>
+<span class="font-label-md text-label-md">Sanctum</span>
+</a>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas (Fluid Graph Area) -->
+<main class="flex-1 relative w-full h-screen ml-0 md:ml-64 mt-20 md:mt-0 bg-bg-page overflow-hidden" id="canvas-container">
+<!-- Search Overlay (Top) -->
+<div class="absolute top-8 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-30 pointer-events-none">
+<div class="relative bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] pointer-events-auto flex items-center px-4 py-3 group focus-within:border-rune-quest focus-within:shadow-[0_0_20px_rgba(212,169,63,0.2)] transition-all duration-300">
+<span class="material-symbols-outlined text-text-muted group-focus-within:text-rune-quest transition-colors mr-3" data-icon="search">search</span>
+<input class="bg-transparent border-none text-on-surface placeholder:text-text-tertiary focus:ring-0 w-full font-body-md text-body-md h-full outline-none" placeholder="Search the Grimoire..." type="text"/>
+<span class="material-symbols-outlined text-text-muted hover:text-primary cursor-pointer transition-colors ml-3" data-icon="tune">tune</span>
+</div>
+</div>
+<!-- SVG Graph Rendering Area -->
+<svg class="absolute inset-0 w-full h-full" id="constellation-graph">
+<!-- Defs for filters/gradients -->
+<defs>
+<filter height="140%" id="glow-filter" width="140%" x="-20%" y="-20%">
+<fegaussianblur result="blur" stddeviation="4"></fegaussianblur>
+<fecomposite in="SourceGraphic" in2="blur" operator="over"></fecomposite>
+</filter>
+</defs>
+<!-- Edges Layer -->
+<g id="edges-layer">
+<!-- Center Spine (Quest Line) -->
+<line class="edge-quest stroke-2" x1="30%" x2="50%" y1="50%" y2="50%"></line>
+<line class="edge-quest stroke-2" x1="50%" x2="70%" y1="50%" y2="50%"></line>
+<!-- Radiating Edges from Node 1 -->
+<line class="edge-quest stroke-[1.5]" x1="30%" x2="20%" y1="50%" y2="30%"></line>
+<line class="edge-quest stroke-[1.5]" x1="30%" x2="25%" y1="50%" y2="70%"></line>
+<!-- Radiating Edges from Node 2 -->
+<line class="edge-quest stroke-[1.5]" x1="50%" x2="45%" y1="50%" y2="25%"></line>
+<line class="edge-quest stroke-[1.5]" x1="50%" x2="60%" y1="50%" y2="30%"></line>
+<line class="edge-quest stroke-[1.5]" x1="50%" x2="55%" y1="50%" y2="75%"></line>
+<!-- Radiating Edges from Node 3 -->
+<line class="edge-quest stroke-[1.5]" x1="70%" x2="80%" y1="50%" y2="35%"></line>
+<line class="edge-quest stroke-[1.5]" x1="70%" x2="75%" y1="50%" y2="65%"></line>
+</g>
+<!-- Nodes Layer -->
+<g id="nodes-layer">
+<!-- Center Spine (Quest Nodes - Steady) -->
+<g class="cursor-pointer group" transform="translate(30%, 50%)">
+<circle class="transition-all duration-300 group-hover:stroke-width-[3]" fill="#0e0d16" filter="url(#glow-filter)" r="24" stroke="#d4a93f" stroke-width="2"></circle>
+<text class="material-symbols-outlined" data-icon="account_tree" dominant-baseline="central" fill="#d4a93f" style="font-size: 24px;" text-anchor="middle">account_tree</text>
+<text class="font-label-md text-label-md opacity-80 group-hover:opacity-100" fill="#e5e0ee" text-anchor="middle" y="40">Origin</text>
+</g>
+<g class="cursor-pointer group" transform="translate(50%, 50%)">
+<circle class="glow-quest transition-all duration-300 group-hover:stroke-width-[3]" fill="#16142b" r="32" stroke="#d4a93f" stroke-width="2"></circle>
+<text class="material-symbols-outlined" data-icon="hub" dominant-baseline="central" fill="#d4a93f" style="font-size: 32px;" text-anchor="middle">hub</text>
+<text class="font-headline-sm text-headline-sm" fill="#ffefc0" text-anchor="middle" y="50">Nexus Core</text>
+</g>
+<g class="cursor-pointer group" transform="translate(70%, 50%)">
+<circle class="transition-all duration-300 group-hover:stroke-width-[3]" fill="#0e0d16" filter="url(#glow-filter)" r="24" stroke="#d4a93f" stroke-width="2"></circle>
+<text class="material-symbols-outlined" data-icon="account_tree" dominant-baseline="central" fill="#d4a93f" style="font-size: 24px;" text-anchor="middle">account_tree</text>
+<text class="font-label-md text-label-md opacity-80 group-hover:opacity-100" fill="#e5e0ee" text-anchor="middle" y="40">Terminus</text>
+</g>
+<!-- Radiating Nodes (Tomes - Blue) -->
+<g class="cursor-pointer group" transform="translate(20%, 30%)">
+<circle class="pulse-tome" fill="#0e0d16" r="18" stroke="#5b8dd9" stroke-width="1.5"></circle>
+<text class="material-symbols-outlined" data-icon="menu_book" dominant-baseline="central" fill="#5b8dd9" style="font-size: 18px;" text-anchor="middle">menu_book</text>
+<text class="font-label-md text-label-md opacity-60 group-hover:opacity-100" fill="#cdc6b7" text-anchor="middle" y="30">Draft A</text>
+</g>
+<g class="cursor-pointer group" transform="translate(45%, 25%)">
+<circle class="glow-tome" fill="#0e0d16" r="20" stroke="#5b8dd9" stroke-width="1.5"></circle>
+<text class="material-symbols-outlined" data-icon="menu_book" dominant-baseline="central" fill="#5b8dd9" style="font-size: 20px;" text-anchor="middle">menu_book</text>
+<text class="font-label-md text-label-md opacity-80 group-hover:opacity-100" fill="#cdc6b7" text-anchor="middle" y="32">Codex V</text>
+</g>
+<!-- Radiating Nodes (Chronicles - Orange) -->
+<g class="cursor-pointer group" transform="translate(25%, 70%)">
+<circle class="glow-chronicle" fill="#0e0d16" r="16" stroke="#d98b4a" stroke-width="1.5"></circle>
+<text class="material-symbols-outlined" data-icon="auto_stories" dominant-baseline="central" fill="#d98b4a" style="font-size: 16px;" text-anchor="middle">auto_stories</text>
+<text class="font-label-md text-label-md opacity-60 group-hover:opacity-100" fill="#cdc6b7" text-anchor="middle" y="28">Event Log</text>
+</g>
+<g class="cursor-pointer group" transform="translate(60%, 30%)">
+<circle class="pulse-chronicle" fill="#0e0d16" r="22" stroke="#d98b4a" stroke-width="1.5"></circle>
+<text class="material-symbols-outlined" data-icon="auto_stories" dominant-baseline="central" fill="#d98b4a" style="font-size: 22px;" text-anchor="middle">auto_stories</text>
+<text class="font-label-md text-label-md opacity-80 group-hover:opacity-100" fill="#cdc6b7" text-anchor="middle" y="36">Timeline B</text>
+</g>
+<!-- Radiating Nodes (Entities/Runes - Violet) -->
+<g class="cursor-pointer group" transform="translate(55%, 75%)">
+<circle class="glow-entity" fill="#0e0d16" r="18" stroke="#9d6bd9" stroke-width="1.5"></circle>
+<text class="material-symbols-outlined" data-icon="token" dominant-baseline="central" fill="#9d6bd9" style="font-size: 18px;" text-anchor="middle">token</text>
+<text class="font-label-md text-label-md opacity-60 group-hover:opacity-100" fill="#cdc6b7" text-anchor="middle" y="30">Agent X</text>
+</g>
+<g class="cursor-pointer group" transform="translate(80%, 35%)">
+<circle class="pulse-entity" fill="#0e0d16" r="20" stroke="#9d6bd9" stroke-width="1.5"></circle>
+<text class="material-symbols-outlined" data-icon="token" dominant-baseline="central" fill="#9d6bd9" style="font-size: 20px;" text-anchor="middle">token</text>
+<text class="font-label-md text-label-md opacity-80 group-hover:opacity-100" fill="#cdc6b7" text-anchor="middle" y="32">Variable Y</text>
+</g>
+</g>
+</svg>
+<!-- Node Detail Panel (Hidden by default, shown for Nexus Core conceptually) -->
+<aside class="absolute top-24 right-8 w-80 bg-bg-panel border border-border-default rounded-lg shadow-[0_0_20px_0px_rgba(0,0,0,0.8)] flex flex-col hidden md:flex border-t-2 border-t-rune-quest">
+<div class="p-4 border-b border-border-subtle flex justify-between items-start">
+<div>
+<span class="inline-block px-2 py-1 bg-rune-quest/10 text-rune-quest font-label-md text-label-md rounded uppercase tracking-wider mb-2">Quest Line</span>
+<h3 class="font-headline-sm text-headline-sm text-primary">Nexus Core</h3>
+</div>
+<button class="text-text-muted hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="close">close</span>
+</button>
+</div>
+<div class="p-4 flex-1">
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4">
+                    The central repository for current overarching objectives. Contains cross-references to active Tomes and unresolved Entity anomalies.
+                </p>
+<div class="space-y-3">
+<div class="flex items-center justify-between text-sm">
+<span class="font-label-md text-label-md text-text-muted">Status</span>
+<span class="text-rune-quest font-label-md text-label-md flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-rune-quest glow-quest"></span> Active
+                        </span>
+</div>
+<div class="flex items-center justify-between text-sm">
+<span class="font-label-md text-label-md text-text-muted">Connections</span>
+<span class="font-label-md text-label-md text-on-surface">8 Nodes</span>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-border-subtle bg-surface-container-low rounded-b-lg flex gap-2">
+<button class="flex-1 py-2 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(227,211,160,0.3)] transition-all duration-300 font-label-md text-label-md">Open Node</button>
+</div>
+</aside>
+</main>
+</body></html>

@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ROAR Quest Line - The Grimoire</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&amp;family=Spectral:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary": "#39300b",
+                    "primary-container": "#e3d3a0",
+                    "bg-page": "#0c0b14",
+                    "outline": "#969083",
+                    "outline-variant": "#4b463b",
+                    "border-default": "#29263f",
+                    "surface-variant": "#35333e",
+                    "inverse-primary": "#695e35",
+                    "surface-container-low": "#1c1a24",
+                    "primary-fixed": "#f2e2ae",
+                    "on-primary-fixed": "#221b00",
+                    "on-tertiary-fixed-variant": "#5a4300",
+                    "on-primary-fixed-variant": "#51461f",
+                    "surface-container": "#201e28",
+                    "surface": "#13121c",
+                    "on-background": "#e5e0ee",
+                    "surface-container-high": "#2a2933",
+                    "surface-container-highest": "#35333e",
+                    "on-secondary-container": "#372700",
+                    "primary-fixed-dim": "#d5c694",
+                    "on-secondary-fixed": "#251a00",
+                    "surface-dim": "#13121c",
+                    "rune-tome": "#5b8dd9",
+                    "tertiary-fixed-dim": "#ecc158",
+                    "bg-surface": "#16142b",
+                    "on-tertiary-container": "#735700",
+                    "background": "#13121c",
+                    "surface-container-lowest": "#0e0d16",
+                    "rune-chronicle": "#d98b4a",
+                    "border-subtle": "#1d1a2e",
+                    "inverse-on-surface": "#312f39",
+                    "secondary-fixed-dim": "#eec054",
+                    "error-container": "#93000a",
+                    "on-surface": "#e5e0ee",
+                    "rune-quest": "#d4a93f",
+                    "error": "#ffb4ab",
+                    "tertiary-fixed": "#ffdf99",
+                    "primary": "#ffefc0",
+                    "tertiary-container": "#face63",
+                    "bg-panel": "#0e0d16",
+                    "on-tertiary": "#3f2e00",
+                    "on-tertiary-fixed": "#251a00",
+                    "tertiary": "#ffeece",
+                    "surface-tint": "#d5c694",
+                    "secondary-fixed": "#ffdf9b",
+                    "on-secondary-fixed-variant": "#5b4300",
+                    "on-error": "#690005",
+                    "secondary-container": "#b38b22",
+                    "on-error-container": "#ffdad6",
+                    "surface-bright": "#3a3842",
+                    "on-primary-container": "#665a32",
+                    "on-secondary": "#3f2e00",
+                    "secondary": "#eec054",
+                    "text-muted": "#9b96b8",
+                    "on-surface-variant": "#cdc6b7",
+                    "inverse-surface": "#e5e0ee",
+                    "status-error": "#ff4d4d",
+                    "rune-entity": "#9d6bd9",
+                    "text-tertiary": "#6b6789"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "xs": "4px",
+                    "lg": "40px",
+                    "base": "8px",
+                    "margin": "32px",
+                    "gutter": "24px",
+                    "sm": "12px",
+                    "xl": "64px",
+                    "md": "24px"
+            },
+            "fontFamily": {
+                    "body-lg": [
+                            "Spectral"
+                    ],
+                    "headline-md": [
+                            "Cinzel"
+                    ],
+                    "headline-lg": [
+                            "Cinzel"
+                    ],
+                    "label-md": [
+                            "Spectral"
+                    ],
+                    "headline-lg-mobile": [
+                            "Cinzel"
+                    ],
+                    "headline-sm": [
+                            "Cinzel"
+                    ],
+                    "body-md": [
+                            "Spectral"
+                    ],
+                    "display-lg": [
+                            "Cinzel"
+                    ],
+                    "body-sm": [
+                            "Spectral"
+                    ]
+            },
+            "fontSize": {
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "1.6",
+                                    "fontWeight": "300"
+                            }
+                    ],
+                    "headline-md": [
+                            "24px",
+                            {
+                                    "lineHeight": "1.3",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "headline-lg": [
+                            "32px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "letterSpacing": "0.02em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "label-md": [
+                            "12px",
+                            {
+                                    "lineHeight": "1",
+                                    "letterSpacing": "0.1em",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "headline-lg-mobile": [
+                            "28px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "headline-sm": [
+                            "18px",
+                            {
+                                    "lineHeight": "1.4",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "1.6",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "display-lg": [
+                            "48px",
+                            {
+                                    "lineHeight": "1.1",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-sm": [
+                            "14px",
+                            {
+                                    "lineHeight": "1.5",
+                                    "fontWeight": "400"
+                            }
+                    ]
+            }
+    },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Grimoire Chrome */
+        .grimoire-panel {
+            background-color: #0e0d16;
+            border: 1px solid #29263f;
+            position: relative;
+        }
+        .grimoire-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(212, 169, 63, 0.5), transparent);
+        }
+        
+        .glow-quest {
+            box-shadow: 0 0 15px 0px rgba(212, 169, 63, 0.2);
+        }
+        .glow-chronicle {
+            box-shadow: 0 0 15px 0px rgba(217, 139, 74, 0.2);
+        }
+        .glow-tome {
+            box-shadow: 0 0 15px 0px rgba(91, 141, 217, 0.2);
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0c0b14;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #29263f;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4b463b;
+        }
+    </style>
+</head>
+<body class="bg-bg-page text-on-surface min-h-screen flex flex-col font-body-md overflow-x-hidden">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-margin h-20 bg-bg-page border-b border-border-default shadow-[0_0_15px_0px_rgba(212,169,63,0.1)]">
+<div class="flex items-center gap-md">
+<span class="font-display-lg text-display-lg text-primary tracking-widest uppercase">The Grimoire</span>
+</div>
+<nav class="hidden md:flex items-center gap-margin">
+<a class="text-text-muted hover:text-on-surface-variant font-headline-sm text-headline-sm hover:text-primary transition-colors duration-300 active:scale-95 transition-transform" href="#">Tomes</a>
+<a class="text-text-muted hover:text-on-surface-variant font-headline-sm text-headline-sm hover:text-primary transition-colors duration-300 active:scale-95 transition-transform" href="#">Chronicles</a>
+<a class="text-text-muted hover:text-on-surface-variant font-headline-sm text-headline-sm hover:text-primary transition-colors duration-300 active:scale-95 transition-transform" href="#">Entities</a>
+</nav>
+<div class="flex items-center gap-sm">
+<button class="text-primary hover:text-primary-container p-2 rounded-full hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">history_edu</span>
+</button>
+<button class="text-primary hover:text-primary-container p-2 rounded-full hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">auto_stories</span>
+</button>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="hidden md:flex fixed left-0 top-0 h-full flex-col pt-24 pb-8 z-40 bg-surface-container-lowest border-r border-border-default w-64">
+<div class="px-md mb-xl flex flex-col items-center">
+<div class="w-16 h-16 rounded-full border-2 border-primary mb-sm overflow-hidden flex items-center justify-center bg-bg-surface glow-quest">
+<span class="material-symbols-outlined text-primary text-3xl">psychiatry</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-primary text-center">The Archivist</h2>
+<p class="font-label-md text-label-md text-text-muted text-center uppercase tracking-widest mt-xs">Level IV Seeker</p>
+</div>
+<nav class="flex-1 flex flex-col gap-sm mt-md">
+<a class="flex items-center gap-sm py-2 px-md text-primary font-bold border-l-4 border-primary bg-surface-container-high pl-4 hover:bg-surface-container transition-all duration-200 hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined icon-fill text-rune-quest">account_tree</span>
+<span class="font-body-md text-body-md">Quest Lines</span>
+</a>
+<a class="flex items-center gap-sm py-2 px-md text-text-muted hover:text-on-surface pl-4 hover:bg-surface-container transition-all duration-200 hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="font-body-md text-body-md">Tomes</span>
+</a>
+<a class="flex items-center gap-sm py-2 px-md text-text-muted hover:text-on-surface pl-4 hover:bg-surface-container transition-all duration-200 hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">auto_stories</span>
+<span class="font-body-md text-body-md">Chronicles</span>
+</a>
+<a class="flex items-center gap-sm py-2 px-md text-text-muted hover:text-on-surface pl-4 hover:bg-surface-container transition-all duration-200 hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">token</span>
+<span class="font-body-md text-body-md">Runes</span>
+</a>
+</nav>
+<div class="px-md mt-auto space-y-md">
+<button class="w-full py-2 border border-primary text-primary-container bg-bg-surface hover:bg-surface-container-low transition-colors glow-quest flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined">edit_square</span>
+<span>Scribe New Node</span>
+</button>
+<div class="border-t border-border-default pt-sm flex flex-col gap-sm">
+<a class="flex items-center gap-sm py-1 px-md text-text-muted hover:text-on-surface text-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span>Settings</span>
+</a>
+<a class="flex items-center gap-sm py-1 px-md text-text-muted hover:text-on-surface text-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">fort</span>
+<span>Sanctum</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-64 pt-24 p-margin grid grid-cols-1 lg:grid-cols-12 gap-gutter max-w-[1600px] mx-auto w-full">
+<!-- Header Section -->
+<header class="lg:col-span-12 mb-xl flex flex-col md:flex-row justify-between items-start md:items-end border-b border-border-default pb-md relative">
+<div class="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-rune-quest via-transparent to-transparent"></div>
+<div>
+<div class="flex items-center gap-sm mb-xs">
+<span class="material-symbols-outlined text-rune-quest">account_tree</span>
+<span class="font-label-md text-label-md text-rune-quest uppercase tracking-widest">Active Quest Line</span>
+</div>
+<h1 class="font-display-lg text-display-lg text-on-surface tracking-wide drop-shadow-[0_0_10px_rgba(212,169,63,0.3)]">
+                    Project <span class="text-rune-quest">ROAR</span>
+</h1>
+</div>
+<div class="mt-md md:mt-0 flex gap-sm">
+<button class="px-4 py-2 border border-outline-variant text-text-muted hover:border-rune-quest hover:text-primary transition-all duration-300 flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">share</span>
+<span class="font-label-md text-label-md">Share</span>
+</button>
+<button class="px-4 py-2 border border-rune-quest text-primary-container bg-bg-surface hover:bg-surface-container-low transition-all duration-300 glow-quest flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+<span class="font-label-md text-label-md">Edit Hub</span>
+</button>
+</div>
+</header>
+<!-- Left Column: Content Canvas -->
+<div class="lg:col-span-8 flex flex-col gap-xl">
+<!-- Living Context Summary -->
+<section class="grimoire-panel p-md border-t-2 border-t-rune-quest glow-quest">
+<h3 class="font-headline-md text-headline-md text-primary mb-md flex items-center gap-sm">
+<span class="material-symbols-outlined text-rune-quest">menu_book</span>
+                    Living Context Summary
+                </h3>
+<div class="prose prose-invert max-w-none font-body-lg text-body-lg text-on-surface-variant leading-relaxed space-y-4">
+<p>
+                        Project ROAR is an initiative to refactor the core authentication microservices into a unified, zero-trust architecture. The current phase focuses on decoupling legacy identity providers while establishing a robust framework for autonomous agent delegation.
+                    </p>
+<p>
+                        Recent discoveries in the <span class="text-rune-tome cursor-pointer hover:underline">Authentication Codex</span> suggest potential vulnerabilities in token parsing under high load, requiring immediate attention before the next deployment cycle.
+                    </p>
+</div>
+</section>
+<!-- Bento Grid: Chronicles & Tomes -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<!-- Chronicles List -->
+<section class="grimoire-panel p-md border-t-2 border-t-rune-chronicle glow-chronicle flex flex-col h-full">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-headline-sm text-headline-sm text-primary flex items-center gap-sm">
+<span class="material-symbols-outlined text-rune-chronicle">auto_stories</span>
+                            Recent Chronicles
+                        </h3>
+<button class="text-text-muted hover:text-rune-chronicle transition-colors">
+<span class="material-symbols-outlined">add_circle</span>
+</button>
+</div>
+<div class="flex-1 space-y-sm overflow-y-auto pr-2 max-h-[300px]">
+<!-- Chronicle Node -->
+<a class="block p-sm bg-surface-container hover:bg-surface-container-high border border-border-default hover:border-rune-chronicle transition-all duration-200 group relative overflow-hidden" href="#">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-rune-chronicle opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex items-start justify-between">
+<div>
+<h4 class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">Client Kickoff Sync</h4>
+<p class="font-body-sm text-body-sm text-text-muted mt-1 line-clamp-1">Initial requirements gathering and timeline alignment.</p>
+</div>
+<span class="font-label-md text-label-md text-text-tertiary">2h ago</span>
+</div>
+</a>
+<!-- Chronicle Node -->
+<a class="block p-sm bg-surface-container hover:bg-surface-container-high border border-border-default hover:border-rune-chronicle transition-all duration-200 group relative overflow-hidden" href="#">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-rune-chronicle opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex items-start justify-between">
+<div>
+<h4 class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">Architecture Review</h4>
+<p class="font-body-sm text-body-sm text-text-muted mt-1 line-clamp-1">Feedback from senior engineers regarding the proposed data model.</p>
+</div>
+<span class="font-label-md text-label-md text-text-tertiary">1d ago</span>
+</div>
+</a>
+<!-- Chronicle Node -->
+<a class="block p-sm bg-surface-container hover:bg-surface-container-high border border-border-default hover:border-rune-chronicle transition-all duration-200 group relative overflow-hidden" href="#">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-rune-chronicle opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex items-start justify-between">
+<div>
+<h4 class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">Sprint Planning</h4>
+<p class="font-body-sm text-body-sm text-text-muted mt-1 line-clamp-1">Task allocation for the upcoming two-week cycle.</p>
+</div>
+<span class="font-label-md text-label-md text-text-tertiary">3d ago</span>
+</div>
+</a>
+</div>
+</section>
+<!-- Tomes List -->
+<section class="grimoire-panel p-md border-t-2 border-t-rune-tome glow-tome flex flex-col h-full">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-headline-sm text-headline-sm text-primary flex items-center gap-sm">
+<span class="material-symbols-outlined text-rune-tome">library_books</span>
+                            Linked Tomes
+                        </h3>
+<button class="text-text-muted hover:text-rune-tome transition-colors">
+<span class="material-symbols-outlined">add_circle</span>
+</button>
+</div>
+<div class="flex-1 space-y-sm overflow-y-auto pr-2 max-h-[300px]">
+<!-- Tome Node -->
+<a class="block p-sm bg-surface-container hover:bg-surface-container-high border border-border-default hover:border-rune-tome transition-all duration-200 group relative overflow-hidden" href="#">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-rune-tome opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded bg-surface border border-border-default flex items-center justify-center text-rune-tome">
+<span class="material-symbols-outlined text-[18px]">description</span>
+</div>
+<div class="flex-1">
+<h4 class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">Auth API Spec v2</h4>
+<p class="font-body-sm text-body-sm text-text-muted mt-1">OpenAPI definitions and endpoint schemas.</p>
+</div>
+</div>
+</a>
+<!-- Tome Node -->
+<a class="block p-sm bg-surface-container hover:bg-surface-container-high border border-border-default hover:border-rune-tome transition-all duration-200 group relative overflow-hidden" href="#">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-rune-tome opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded bg-surface border border-border-default flex items-center justify-center text-rune-tome">
+<span class="material-symbols-outlined text-[18px]">inventory_2</span>
+</div>
+<div class="flex-1">
+<h4 class="font-body-md text-body-md text-on-surface group-hover:text-primary transition-colors">Legacy Migration Plan</h4>
+<p class="font-body-sm text-body-sm text-text-muted mt-1">Step-by-step procedure for sunsetting old DBs.</p>
+</div>
+</div>
+</a>
+</div>
+</section>
+</div>
+<!-- Graph Visualization Placeholder -->
+<section class="grimoire-panel p-md h-64 flex flex-col justify-center items-center border-border-default relative overflow-hidden">
+<div class="absolute inset-0 opacity-20 pointer-events-none" style="background-image: radial-gradient(circle at center, #29263f 1px, transparent 1px); background-size: 20px 20px;"></div>
+<span class="material-symbols-outlined text-4xl text-text-muted mb-sm opacity-50">hub</span>
+<p class="font-label-md text-label-md text-text-muted uppercase tracking-widest">Network Visualization Offline</p>
+<p class="font-body-sm text-body-sm text-text-tertiary mt-xs">Awaiting sufficient node density to map constellation.</p>
+</section>
+</div>
+<!-- Right Column: Metadata Sidebar -->
+<aside class="lg:col-span-4 flex flex-col gap-lg">
+<div class="grimoire-panel p-md bg-surface-container-lowest border-border-default">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-md border-b border-border-default pb-2">Quest Metadata</h3>
+<ul class="space-y-md">
+<!-- Status -->
+<li class="flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-text-muted uppercase tracking-widest">Status</span>
+<div class="flex items-center gap-xs">
+<span class="w-2 h-2 rounded-full bg-rune-quest shadow-[0_0_8px_0px_rgba(212,169,63,0.8)] animate-pulse"></span>
+<span class="font-body-md text-body-md text-primary-container">Active Synthesis</span>
+</div>
+</li>
+<!-- Client -->
+<li class="flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-text-muted uppercase tracking-widest">Client / Domain</span>
+<div class="flex items-center gap-sm">
+<div class="w-6 h-6 rounded bg-surface border border-border-default flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-on-surface">domain</span>
+</div>
+<span class="font-body-md text-body-md text-on-surface-variant">OmniCorp Financial</span>
+</div>
+</li>
+<!-- Tech Stack -->
+<li class="flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-text-muted uppercase tracking-widest">Technology Stack</span>
+<div class="flex flex-wrap gap-2 mt-1">
+<span class="px-2 py-1 text-xs border border-border-default bg-surface text-on-surface-variant rounded">Go</span>
+<span class="px-2 py-1 text-xs border border-border-default bg-surface text-on-surface-variant rounded">PostgreSQL</span>
+<span class="px-2 py-1 text-xs border border-border-default bg-surface text-on-surface-variant rounded">Redis</span>
+<span class="px-2 py-1 text-xs border border-border-default bg-surface text-on-surface-variant rounded">gRPC</span>
+</div>
+</li>
+<!-- Assigned Seekers -->
+<li class="flex flex-col gap-xs">
+<span class="font-label-md text-label-md text-text-muted uppercase tracking-widest">Assigned Seekers</span>
+<div class="flex items-center gap-2 mt-1">
+<div class="w-8 h-8 rounded-full bg-surface border border-rune-quest flex items-center justify-center text-primary-container text-xs cursor-pointer hover:bg-surface-container transition-colors" title="The Archivist">
+                                 A
+                             </div>
+<div class="w-8 h-8 rounded-full bg-surface border border-border-default flex items-center justify-center text-text-muted text-xs cursor-pointer hover:border-rune-quest transition-colors" title="Add Seeker">
+<span class="material-symbols-outlined text-[16px]">add</span>
+</div>
+</div>
+</li>
+</ul>
+</div>
+<div class="grimoire-panel p-md bg-surface-container-lowest border-border-default">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-md border-b border-border-default pb-2">Recent Runes</h3>
+<div class="flex flex-wrap gap-sm">
+<span class="px-3 py-1 text-sm border border-rune-quest text-rune-quest bg-rune-quest/10 rounded-full flex items-center gap-1 cursor-pointer hover:bg-rune-quest/20 transition-colors">
+<span class="material-symbols-outlined text-[14px]">token</span> High Priority
+                    </span>
+<span class="px-3 py-1 text-sm border border-border-default text-text-muted bg-surface rounded-full flex items-center gap-1 cursor-pointer hover:border-on-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[14px]">token</span> Architecture
+                    </span>
+<span class="px-3 py-1 text-sm border border-border-default text-text-muted bg-surface rounded-full flex items-center gap-1 cursor-pointer hover:border-on-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[14px]">token</span> Security
+                    </span>
+</div>
+</div>
+</aside>
+</main>
+</body></html>

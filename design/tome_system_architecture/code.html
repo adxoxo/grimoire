@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Grimoire - Tome View</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@300;400;500&amp;family=Cinzel:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary": "#39300b",
+                    "primary-container": "#e3d3a0",
+                    "bg-page": "#0c0b14",
+                    "outline": "#969083",
+                    "outline-variant": "#4b463b",
+                    "border-default": "#29263f",
+                    "surface-variant": "#35333e",
+                    "inverse-primary": "#695e35",
+                    "surface-container-low": "#1c1a24",
+                    "primary-fixed": "#f2e2ae",
+                    "on-primary-fixed": "#221b00",
+                    "on-tertiary-fixed-variant": "#5a4300",
+                    "on-primary-fixed-variant": "#51461f",
+                    "surface-container": "#201e28",
+                    "surface": "#13121c",
+                    "on-background": "#e5e0ee",
+                    "surface-container-high": "#2a2933",
+                    "surface-container-highest": "#35333e",
+                    "on-secondary-container": "#372700",
+                    "primary-fixed-dim": "#d5c694",
+                    "on-secondary-fixed": "#251a00",
+                    "surface-dim": "#13121c",
+                    "rune-tome": "#5b8dd9",
+                    "tertiary-fixed-dim": "#ecc158",
+                    "bg-surface": "#16142b",
+                    "on-tertiary-container": "#735700",
+                    "background": "#13121c",
+                    "surface-container-lowest": "#0e0d16",
+                    "rune-chronicle": "#d98b4a",
+                    "border-subtle": "#1d1a2e",
+                    "inverse-on-surface": "#312f39",
+                    "secondary-fixed-dim": "#eec054",
+                    "error-container": "#93000a",
+                    "on-surface": "#e5e0ee",
+                    "rune-quest": "#d4a93f",
+                    "error": "#ffb4ab",
+                    "tertiary-fixed": "#ffdf99",
+                    "primary": "#ffefc0",
+                    "tertiary-container": "#face63",
+                    "bg-panel": "#0e0d16",
+                    "on-tertiary": "#3f2e00",
+                    "on-tertiary-fixed": "#251a00",
+                    "tertiary": "#ffeece",
+                    "surface-tint": "#d5c694",
+                    "secondary-fixed": "#ffdf9b",
+                    "on-secondary-fixed-variant": "#5b4300",
+                    "on-error": "#690005",
+                    "secondary-container": "#b38b22",
+                    "on-error-container": "#ffdad6",
+                    "surface-bright": "#3a3842",
+                    "on-primary-container": "#665a32",
+                    "on-secondary": "#3f2e00",
+                    "secondary": "#eec054",
+                    "text-muted": "#9b96b8",
+                    "on-surface-variant": "#cdc6b7",
+                    "inverse-surface": "#e5e0ee",
+                    "status-error": "#ff4d4d",
+                    "rune-entity": "#9d6bd9",
+                    "text-tertiary": "#6b6789"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "xs": "4px",
+                    "lg": "40px",
+                    "base": "8px",
+                    "margin": "32px",
+                    "gutter": "24px",
+                    "sm": "12px",
+                    "xl": "64px",
+                    "md": "24px"
+            },
+            "fontFamily": {
+                    "body-lg": ["Spectral"],
+                    "headline-md": ["Cinzel"],
+                    "headline-lg": ["Cinzel"],
+                    "label-md": ["Spectral"],
+                    "headline-lg-mobile": ["Cinzel"],
+                    "headline-sm": ["Cinzel"],
+                    "body-md": ["Spectral"],
+                    "display-lg": ["Cinzel"],
+                    "body-sm": ["Spectral"]
+            },
+            "fontSize": {
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "300"}],
+                    "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "500"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "500"}],
+                    "headline-lg-mobile": ["28px", {"lineHeight": "1.2", "fontWeight": "600"}],
+                    "headline-sm": ["18px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                    "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body { background-color: #0c0b14; }
+        .tome-glow { box-shadow: 0 0 15px 0px rgba(91, 141, 217, 0.2); }
+        .tome-border-top { border-top: 2px solid #5b8dd9; }
+        .markdown-content h1 { font-family: 'Cinzel', serif; font-size: 32px; font-weight: 600; color: #e5e0ee; margin-top: 40px; margin-bottom: 24px; line-height: 1.2; letter-spacing: 0.02em; }
+        .markdown-content h2 { font-family: 'Cinzel', serif; font-size: 24px; font-weight: 500; color: #e5e0ee; margin-top: 32px; margin-bottom: 16px; line-height: 1.3; }
+        .markdown-content p { margin-bottom: 24px; color: #cdc6b7; }
+        .markdown-content ul { list-style-type: disc; padding-left: 24px; margin-bottom: 24px; color: #cdc6b7; }
+        .markdown-content li { margin-bottom: 8px; }
+        .markdown-content blockquote { border-left: 2px solid #29263f; padding-left: 16px; margin-left: 0; color: #9b96b8; font-style: italic; margin-bottom: 24px; }
+        .markdown-content code { background-color: #1c1a24; padding: 2px 4px; border-radius: 4px; font-family: monospace; font-size: 14px; color: #d4a93f; }
+        .markdown-content pre { background-color: #1c1a24; padding: 16px; border-radius: 4px; overflow-x: auto; margin-bottom: 24px; border: 1px solid #29263f; }
+        .markdown-content pre code { background-color: transparent; padding: 0; color: #e5e0ee; }
+    </style>
+</head>
+<body class="text-on-surface antialiased h-screen flex flex-col overflow-hidden selection:bg-rune-tome selection:text-bg-page">
+<!-- Top Navigation App Bar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-margin h-20 bg-bg-page border-b border-border-default shadow-[0_0_15px_0px_rgba(212,169,63,0.1)]">
+<div class="flex items-center gap-6">
+<span class="font-display-lg text-display-lg text-primary tracking-widest uppercase">The Grimoire</span>
+<nav class="hidden md:flex items-center gap-8 ml-8 h-full">
+<a class="font-headline-sm text-headline-sm text-primary border-b-2 border-rune-tome pb-1 hover:text-primary transition-colors duration-300" href="#">Tomes</a>
+<a class="font-headline-sm text-headline-sm text-text-muted hover:text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">Chronicles</a>
+<a class="font-headline-sm text-headline-sm text-text-muted hover:text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">Entities</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button aria-label="Search" class="p-2 text-text-muted hover:text-primary transition-colors duration-300 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button aria-label="History" class="p-2 text-text-muted hover:text-primary transition-colors duration-300 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+</button>
+<button aria-label="Library" class="p-2 text-text-muted hover:text-primary transition-colors duration-300 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span>
+</button>
+</div>
+</header>
+<div class="flex flex-1 pt-20 overflow-hidden">
+<!-- Side Navigation (Suppressed conceptually for reading focus, but requested as 'Table of Contents' in prompt) -->
+<aside class="w-64 bg-surface-container-lowest border-r border-border-default h-full overflow-y-auto hidden lg:flex flex-col flex-shrink-0 z-40">
+<div class="p-6">
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-rune-tome text-[18px]" data-icon="menu_book">menu_book</span>
+                    Index
+                </h3>
+<nav class="flex flex-col gap-3 font-body-md text-body-md">
+<a class="text-primary font-bold border-l-2 border-rune-tome pl-3 hover:bg-surface-container transition-all duration-200" href="#section-1">The Astral Confluence</a>
+<a class="text-text-muted pl-3 hover:text-on-surface hover:bg-surface-container transition-all duration-200" href="#section-2">Mechanics of Ether</a>
+<a class="text-text-muted pl-3 hover:text-on-surface hover:bg-surface-container transition-all duration-200 ml-4" href="#section-3">Resonance Frequencies</a>
+<a class="text-text-muted pl-3 hover:text-on-surface hover:bg-surface-container transition-all duration-200 ml-4" href="#section-4">Decay Rates</a>
+<a class="text-text-muted pl-3 hover:text-on-surface hover:bg-surface-container transition-all duration-200" href="#section-5">Historical Anomalies</a>
+</nav>
+</div>
+<!-- Metadata Panel -->
+<div class="mt-auto p-6 border-t border-border-default">
+<div class="font-label-md text-label-md text-text-tertiary uppercase mb-2">Tome Metadata</div>
+<div class="font-body-sm text-body-sm text-text-muted">
+<div class="flex justify-between mb-1"><span>Author:</span> <span class="text-on-surface">Archivist Sigil</span></div>
+<div class="flex justify-between mb-1"><span>Date:</span> <span class="text-on-surface">Age 4, Cycle 12</span></div>
+<div class="flex justify-between"><span>Status:</span> <span class="text-rune-tome">Verified</span></div>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 overflow-y-auto bg-bg-page relative flex justify-center pb-24">
+<!-- Reading Canvas -->
+<article class="w-full max-w-[800px] mt-lg mb-xl px-gutter md:px-margin bg-bg-panel tome-border-top tome-glow rounded-b-lg border-x border-b border-border-default h-fit">
+<!-- Tome Header -->
+<header class="py-12 border-b border-border-default mb-8 relative">
+<div class="absolute top-0 right-0 p-4 opacity-10">
+<span class="material-symbols-outlined text-display-lg text-rune-tome" data-icon="menu_book" style="font-size: 120px;">menu_book</span>
+</div>
+<div class="font-label-md text-label-md text-rune-tome uppercase tracking-widest mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="auto_awesome">auto_awesome</span>
+                        Arcane Treatise
+                    </div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface mb-4">The Astral Confluence &amp; Ether Mechanics</h1>
+<p class="font-body-lg text-body-lg text-text-muted">A comprehensive study of planar intersections and their residual energy signatures recorded during the last cycle.</p>
+</header>
+<!-- Markdown Content Container -->
+<div class="markdown-content font-body-lg text-body-lg pb-12">
+<h2 id="section-1">The Astral Confluence</h2>
+<p>The convergence of the ethereal planes, commonly referred to as the <em>Astral Confluence</em>, represents a unique period of metaphysical instability. During this time, the barriers separating the physical realm from the latent energy fields of the Aether grow exceedingly thin, allowing for phenomena previously considered theoretical.</p>
+<p>Observations from the High Observatory indicate that these confluences operate on an elliptical cycle, roughly every four hundred solar years. The implications for arcano-mechanics are profound.</p>
+<blockquote>"To gaze into the confluence is to see the gears of reality laid bare, unshielded by the mundane laws of physics." — Seeker Valerius</blockquote>
+<h2 id="section-2">Mechanics of Ether</h2>
+<p>Ether is not a substance, but a state of resonance. It acts as the conductive medium through which arcane intent translates into physical reality. Understanding its mechanics requires a paradigm shift from classical thermodynamics.</p>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mt-6 mb-4" id="section-3">Resonance Frequencies</h3>
+<p>Different forms of energy possess distinct resonant frequencies when passing through the Ether. These can be quantified and, theoretically, manipulated.</p>
+<ul>
+<li><strong>Alpha Frequencies:</strong> High volatility, associated with thermal and kinetic expressions.</li>
+<li><strong>Beta Frequencies:</strong> Stable, enduring states, used in structural abjuration and containment fields.</li>
+<li><strong>Gamma Frequencies:</strong> Highly theoretical, interacting directly with chronal and spatial dimensions.</li>
+</ul>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mt-6 mb-4" id="section-4">Decay Rates</h3>
+<p>Arcane constructs inevitably degrade. The decay rate of an etheric structure is inversely proportional to the precision of its initial resonance tuning. The standard formula for calculating etheric decay is:</p>
+<pre><code>D(t) = E_0 * e^(-λt) * (1 - R_tuning)</code></pre>
+<p>Where <code>E_0</code> is initial energy, <code>λ</code> is the planar resistance constant, and <code>R_tuning</code> is the resonance alignment coefficient.</p>
+<h2 id="section-5">Historical Anomalies</h2>
+<p>Records predating the Cataclysm hint at constructs that completely bypassed standard decay rates. These "perpetual engines" suggest a mastery over Gamma frequencies that modern archivists have yet to replicate.</p>
+<p>Further investigation into the deeply buried archives of the Sanctum is required to uncover the lost methodologies of these ancient artificers.</p>
+</div>
+</article>
+</main>
+</div>
+<!-- Grimoire Chrome Footer (Action Bar) -->
+<footer class="fixed bottom-0 w-full z-50 h-16 bg-surface-container-highest border-t border-border-default flex items-center justify-between px-margin shadow-[0_-5px_15px_rgba(0,0,0,0.5)]">
+<div class="flex items-center gap-4">
+<span class="font-label-md text-label-md text-text-muted flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="sync">sync</span>
+                Auto-saved
+            </span>
+</div>
+<div class="flex items-center gap-4">
+<button class="px-4 py-2 font-body-sm text-body-sm text-text-muted border border-transparent hover:border-border-default hover:text-on-surface rounded transition-all duration-200 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="compress">compress</span>
+                Compact View
+            </button>
+<button class="px-6 py-2 font-headline-sm text-headline-sm text-primary-container bg-bg-surface border border-rune-quest rounded hover:shadow-[0_0_10px_rgba(212,169,63,0.3)] transition-all duration-300 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="rate_review">rate_review</span>
+                Review Tome
+            </button>
+</div>
+</footer>
+</body></html>
