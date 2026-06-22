@@ -2,20 +2,29 @@ import { useNavigate } from 'react-router-dom'
 import type { GraphNode } from '../api'
 import { RUNE } from '../theme'
 
+interface EdgeRow {
+  src: string
+  dst: string
+  rel: string
+  otherTitle: string
+}
+
 interface Props {
   node: GraphNode
   connections: number
+  edges: EdgeRow[]
+  onPrune: (edge: EdgeRow) => void
   onClose: () => void
 }
 
-export default function NodeDetailPanel({ node, connections, onClose }: Props) {
+export default function NodeDetailPanel({ node, connections, edges, onPrune, onClose }: Props) {
   const navigate = useNavigate()
   const rune = RUNE[node.type]
   const unreviewed = node.status === 'unreviewed'
 
   return (
     <aside
-      className="absolute top-24 right-8 w-80 bg-bg-panel border border-border-default rounded-xl shadow-[0_0_20px_0px_rgba(0,0,0,0.8)] flex flex-col z-30 border-t-2"
+      className="absolute top-24 right-8 w-80 bg-bg-panel border border-border-default rounded-xl shadow-[0_0_20px_0px_rgba(0,0,0,0.8)] flex flex-col z-30 border-t-2 max-h-[80vh]"
       style={{ borderTopColor: rune.color }}
     >
       <div className="p-4 border-b border-border-subtle flex justify-between items-start">
@@ -33,7 +42,7 @@ export default function NodeDetailPanel({ node, connections, onClose }: Props) {
         </button>
       </div>
 
-      <div className="p-4 flex-1 space-y-3">
+      <div className="p-4 space-y-3 overflow-y-auto">
         <div className="flex items-center justify-between">
           <span className="font-label-md text-label-md text-text-muted uppercase tracking-wider">Status</span>
           <span className="font-label-md text-label-md flex items-center gap-2" style={{ color: rune.color }}>
@@ -48,6 +57,29 @@ export default function NodeDetailPanel({ node, connections, onClose }: Props) {
           <span className="font-label-md text-label-md text-text-muted uppercase tracking-wider">Connections</span>
           <span className="font-label-md text-label-md text-on-surface">{connections} nodes</span>
         </div>
+
+        {/* Links + prune */}
+        {edges.length > 0 && (
+          <div className="pt-2 border-t border-border-subtle">
+            <span className="font-label-md text-label-md text-text-muted uppercase tracking-wider">Links</span>
+            <ul className="mt-2 space-y-1">
+              {edges.map((e, i) => (
+                <li key={i} className="flex items-center justify-between gap-2 group">
+                  <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
+                    <span className="text-text-tertiary">{e.rel}</span> {e.otherTitle}
+                  </span>
+                  <button
+                    onClick={() => onPrune(e)}
+                    title="Prune this link"
+                    className="material-symbols-outlined text-[18px] text-text-tertiary hover:text-status-error transition-colors shrink-0"
+                  >
+                    content_cut
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="p-4 border-t border-border-subtle bg-surface-container-low rounded-b-xl">
@@ -66,11 +98,6 @@ export default function NodeDetailPanel({ node, connections, onClose }: Props) {
           >
             Open tome
           </button>
-        )}
-        {(node.type === 'memory' || node.type === 'entity') && (
-          <p className="font-body-sm text-body-sm text-text-tertiary text-center italic">
-            Detailed {rune.label.toLowerCase()} view not yet inscribed
-          </p>
         )}
       </div>
     </aside>

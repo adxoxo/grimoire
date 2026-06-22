@@ -7,6 +7,7 @@ import Home from './views/Home'
 import ProjectHub from './views/ProjectHub'
 import Sanctum from './views/Sanctum'
 import TomeReader from './views/TomeReader'
+import Settings from './views/Settings'
 
 const router = createBrowserRouter([
   {
@@ -17,6 +18,7 @@ const router = createBrowserRouter([
       { path: 'project/:name', element: <ProjectHub /> },
       { path: 'sanctum', element: <Sanctum /> },
       { path: 'tome/:id', element: <TomeReader /> },
+      { path: 'settings', element: <Settings /> },
     ],
   },
 ])

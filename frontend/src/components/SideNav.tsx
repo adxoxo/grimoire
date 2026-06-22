@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { RUNE, type NodeType } from '../theme'
+import { useAppState } from '../state'
 
 interface NavItem {
   label: string
@@ -17,6 +18,7 @@ const ITEMS: NavItem[] = [
 
 export default function SideNav() {
   const loc = useLocation()
+  const { setScribeOpen } = useAppState()
   const params = new URLSearchParams(loc.search)
   const activeType = loc.pathname === '/' ? params.get('type') : '__none__'
 
@@ -64,7 +66,10 @@ export default function SideNav() {
 
       {/* CTA + footer */}
       <div className="px-6 mt-auto flex flex-col gap-4">
-        <button className="w-full py-2 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(227,211,160,0.3)] transition-all duration-300 font-headline-sm text-headline-sm flex items-center justify-center gap-2">
+        <button
+          onClick={() => setScribeOpen(true)}
+          className="w-full py-2 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(227,211,160,0.3)] transition-all duration-300 font-headline-sm text-headline-sm flex items-center justify-center gap-2"
+        >
           <span className="material-symbols-outlined">add</span>
           Scribe new node
         </button>
@@ -73,10 +78,10 @@ export default function SideNav() {
             <span className="material-symbols-outlined text-[20px]">fort</span>
             <span className="font-label-md text-label-md uppercase tracking-widest">Sanctum</span>
           </Link>
-          <a className="flex items-center gap-4 py-2 text-text-muted hover:text-on-surface transition-colors duration-200" href="#">
+          <Link to="/settings" className="flex items-center gap-4 py-2 text-text-muted hover:text-on-surface transition-colors duration-200">
             <span className="material-symbols-outlined text-[20px]">settings</span>
             <span className="font-label-md text-label-md uppercase tracking-widest">Settings</span>
-          </a>
+          </Link>
         </div>
       </div>
     </nav>
