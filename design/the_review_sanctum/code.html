@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Grimoire - The Review Sanctum</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&amp;family=Spectral:wght@300;400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary": "#39300b",
+                    "primary-container": "#e3d3a0",
+                    "bg-page": "#0c0b14",
+                    "outline": "#969083",
+                    "outline-variant": "#4b463b",
+                    "border-default": "#29263f",
+                    "surface-variant": "#35333e",
+                    "inverse-primary": "#695e35",
+                    "surface-container-low": "#1c1a24",
+                    "primary-fixed": "#f2e2ae",
+                    "on-primary-fixed": "#221b00",
+                    "on-tertiary-fixed-variant": "#5a4300",
+                    "on-primary-fixed-variant": "#51461f",
+                    "surface-container": "#201e28",
+                    "surface": "#13121c",
+                    "on-background": "#e5e0ee",
+                    "surface-container-high": "#2a2933",
+                    "surface-container-highest": "#35333e",
+                    "on-secondary-container": "#372700",
+                    "primary-fixed-dim": "#d5c694",
+                    "on-secondary-fixed": "#251a00",
+                    "surface-dim": "#13121c",
+                    "rune-tome": "#5b8dd9",
+                    "tertiary-fixed-dim": "#ecc158",
+                    "bg-surface": "#16142b",
+                    "on-tertiary-container": "#735700",
+                    "background": "#13121c",
+                    "surface-container-lowest": "#0e0d16",
+                    "rune-chronicle": "#d98b4a",
+                    "border-subtle": "#1d1a2e",
+                    "inverse-on-surface": "#312f39",
+                    "secondary-fixed-dim": "#eec054",
+                    "error-container": "#93000a",
+                    "on-surface": "#e5e0ee",
+                    "rune-quest": "#d4a93f",
+                    "error": "#ffb4ab",
+                    "tertiary-fixed": "#ffdf99",
+                    "primary": "#ffefc0",
+                    "tertiary-container": "#face63",
+                    "bg-panel": "#0e0d16",
+                    "on-tertiary": "#3f2e00",
+                    "on-tertiary-fixed": "#251a00",
+                    "tertiary": "#ffeece",
+                    "surface-tint": "#d5c694",
+                    "secondary-fixed": "#ffdf9b",
+                    "on-secondary-fixed-variant": "#5b4300",
+                    "on-error": "#690005",
+                    "secondary-container": "#b38b22",
+                    "on-error-container": "#ffdad6",
+                    "surface-bright": "#3a3842",
+                    "on-primary-container": "#665a32",
+                    "on-secondary": "#3f2e00",
+                    "secondary": "#eec054",
+                    "text-muted": "#9b96b8",
+                    "on-surface-variant": "#cdc6b7",
+                    "inverse-surface": "#e5e0ee",
+                    "status-error": "#ff4d4d",
+                    "rune-entity": "#9d6bd9",
+                    "text-tertiary": "#6b6789"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "xs": "4px",
+                    "lg": "40px",
+                    "base": "8px",
+                    "margin": "32px",
+                    "gutter": "24px",
+                    "sm": "12px",
+                    "xl": "64px",
+                    "md": "24px"
+            },
+            "fontFamily": {
+                    "body-lg": [
+                            "Spectral"
+                    ],
+                    "headline-md": [
+                            "Cinzel"
+                    ],
+                    "headline-lg": [
+                            "Cinzel"
+                    ],
+                    "label-md": [
+                            "Spectral"
+                    ],
+                    "headline-lg-mobile": [
+                            "Cinzel"
+                    ],
+                    "headline-sm": [
+                            "Cinzel"
+                    ],
+                    "body-md": [
+                            "Spectral"
+                    ],
+                    "display-lg": [
+                            "Cinzel"
+                    ],
+                    "body-sm": [
+                            "Spectral"
+                    ]
+            },
+            "fontSize": {
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "1.6",
+                                    "fontWeight": "300"
+                            }
+                    ],
+                    "headline-md": [
+                            "24px",
+                            {
+                                    "lineHeight": "1.3",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "headline-lg": [
+                            "32px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "letterSpacing": "0.02em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "label-md": [
+                            "12px",
+                            {
+                                    "lineHeight": "1",
+                                    "letterSpacing": "0.1em",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "headline-lg-mobile": [
+                            "28px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "headline-sm": [
+                            "18px",
+                            {
+                                    "lineHeight": "1.4",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "1.6",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "display-lg": [
+                            "48px",
+                            {
+                                    "lineHeight": "1.1",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-sm": [
+                            "14px",
+                            {
+                                    "lineHeight": "1.5",
+                                    "fontWeight": "400"
+                            }
+                    ]
+            }
+    },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .filled-icon {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        @keyframes pulse-glow-chronicle {
+            0%, 100% { box-shadow: 0 0 15px 0px rgba(217, 139, 74, 0.1); border-top-color: rgba(217, 139, 74, 0.3); }
+            50% { box-shadow: 0 0 25px 2px rgba(217, 139, 74, 0.3); border-top-color: rgba(217, 139, 74, 0.8); }
+        }
+        @keyframes pulse-glow-quest {
+            0%, 100% { box-shadow: 0 0 15px 0px rgba(212, 169, 63, 0.1); border-top-color: rgba(212, 169, 63, 0.3); }
+            50% { box-shadow: 0 0 25px 2px rgba(212, 169, 63, 0.3); border-top-color: rgba(212, 169, 63, 0.8); }
+        }
+        
+        .glow-chronicle {
+            animation: pulse-glow-chronicle 4s ease-in-out infinite;
+            border-top: 2px solid theme('colors.rune-chronicle');
+        }
+        .glow-quest {
+            animation: pulse-glow-quest 5s ease-in-out infinite;
+            border-top: 2px solid theme('colors.rune-quest');
+        }
+    </style>
+</head>
+<body class="bg-bg-page text-on-surface font-body-md antialiased selection:bg-primary-container selection:text-on-primary">
+<!-- TopNavBar (Hidden on Mobile, Flex on Desktop) -->
+<nav class="hidden md:flex fixed top-0 w-full z-50 justify-between items-center px-margin h-20 bg-bg-page border-b border-border-default shadow-[0_0_15px_0px_rgba(212,169,63,0.1)]">
+<div class="font-display-lg text-display-lg text-primary tracking-widest uppercase">
+            The Grimoire
+        </div>
+<div class="flex items-center space-x-margin">
+<a class="font-headline-sm text-headline-sm text-text-muted hover:text-on-surface-variant transition-colors duration-300" href="#">Tomes</a>
+<!-- Active State: 'Chronicles' is highlighted based on the context of 'Memory (Chronicle) updates' -->
+<a class="font-headline-sm text-headline-sm text-primary border-b-2 border-rune-quest pb-1 hover:text-primary transition-colors duration-300" href="#">Chronicles</a>
+<a class="font-headline-sm text-headline-sm text-text-muted hover:text-on-surface-variant transition-colors duration-300" href="#">Entities</a>
+</div>
+<div class="flex items-center space-x-gutter">
+<span class="material-symbols-outlined text-primary cursor-pointer hover:text-primary-container transition-colors duration-300 active:scale-95 transition-transform" data-icon="history_edu">history_edu</span>
+<span class="material-symbols-outlined text-primary cursor-pointer hover:text-primary-container transition-colors duration-300 active:scale-95 transition-transform" data-icon="auto_stories">auto_stories</span>
+</div>
+</nav>
+<!-- SideNavBar (Hidden on Mobile) -->
+<aside class="hidden md:flex fixed left-0 top-0 h-full flex-col pt-24 pb-8 z-40 bg-surface-container-lowest border-r border-border-default w-64">
+<div class="px-gutter mb-xl flex items-center space-x-sm">
+<div class="w-12 h-12 rounded-full border-2 border-border-default bg-surface-container overflow-hidden flex-shrink-0">
+<img alt="Archivist Sigil" class="w-full h-full object-cover" data-alt="A dark, high-fidelity circular sigil glowing with subtle gold arcana energy against a deep black background. The arcane symbol resembles a stylized archivist's emblem." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdwYpk43kcJxy2XheLGNPGKgOrP2knbK6IXkAJF5BoZiwcLbGsb40QLNnM1Fwhtmyu11Lo3YkbHKENw8PQY8u5fZ7_cwcJ7SgiUgqdAGntgOGVOoilqZRn7d3Bb5lwOrQG3Or6WIKh0-UKsEu1R0sC3ecsmho9QZIsMDun3A4AUSubsdzBeIac8K1gc60hTrxsCKDHM2IFx8IldtKQdeRLnDoAwbX2ABdQLX49iJL0MW8Ovn9NkqDMOyxm7MEyeYnufyvS8Jb40Dk"/>
+</div>
+<div>
+<div class="font-headline-md text-headline-md text-primary">The Archivist</div>
+<div class="font-body-sm text-body-sm text-text-muted">Level IV Seeker</div>
+</div>
+</div>
+<nav class="flex-1 space-y-xs">
+<a class="flex items-center space-x-sm py-sm pl-4 text-text-muted hover:text-on-surface hover:bg-surface-container transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="account_tree">account_tree</span>
+<span class="font-body-md text-body-md">Quest Lines</span>
+</a>
+<a class="flex items-center space-x-sm py-sm pl-4 text-text-muted hover:text-on-surface hover:bg-surface-container transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+<span class="font-body-md text-body-md">Tomes</span>
+</a>
+<!-- Active Nav Item -->
+<a class="flex items-center space-x-sm py-sm pl-4 text-primary font-bold border-l-4 border-primary bg-surface-container-high transition-all duration-200" href="#">
+<span class="material-symbols-outlined filled-icon" data-icon="auto_stories" data-weight="fill">auto_stories</span>
+<span class="font-body-md text-body-md">Chronicles</span>
+</a>
+<a class="flex items-center space-x-sm py-sm pl-4 text-text-muted hover:text-on-surface hover:bg-surface-container transition-all duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined" data-icon="token">token</span>
+<span class="font-body-md text-body-md">Runes</span>
+</a>
+</nav>
+<div class="px-gutter mt-auto space-y-sm">
+<button class="w-full py-sm border border-primary text-primary-container bg-surface-container-low hover:bg-surface-container hover:shadow-[0_0_10px_0px_rgba(227,211,160,0.2)] transition-all duration-300 font-label-md text-label-md tracking-widest uppercase">
+                Scribe New Node
+            </button>
+<div class="flex justify-around pt-sm border-t border-border-default">
+<span class="material-symbols-outlined text-text-muted hover:text-primary transition-colors cursor-pointer" data-icon="settings">settings</span>
+<span class="material-symbols-outlined text-text-muted hover:text-primary transition-colors cursor-pointer" data-icon="fort">fort</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="md:ml-64 pt-20 md:pt-32 px-margin md:px-xl pb-32 min-h-screen">
+<!-- Header -->
+<header class="mb-xl text-center md:text-left border-b border-border-default pb-md">
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-xs">The Review Sanctum</h1>
+<p class="font-body-lg text-body-lg text-text-muted">Unprocessed memories and recent architectural shifts awaiting integration.</p>
+</header>
+<!-- The Review Queue (Bento/Card Grid) -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter max-w-[1400px] mx-auto">
+<!-- Chronicle Entry (Active Pulse) -->
+<article class="bg-bg-panel rounded-DEFAULT border border-border-default p-md glow-chronicle flex flex-col relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-sm opacity-50 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-rune-chronicle text-2xl" data-icon="auto_stories">auto_stories</span>
+</div>
+<header class="mb-sm">
+<div class="flex items-center space-x-xs mb-xs">
+<span class="w-2 h-2 rounded-full bg-rune-chronicle shadow-[0_0_8px_rgba(217,139,74,0.8)]"></span>
+<span class="font-label-md text-label-md text-rune-chronicle uppercase tracking-widest">Chronicle Update</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface leading-tight">Encounter at the Obsidian Spire</h2>
+</header>
+<div class="font-body-sm text-body-sm text-on-surface-variant mb-md flex-1">
+<p class="mb-xs">Distilled Summary: The agent observed unrecorded energetic anomalies near the northern sector. Data suggests a potential leak from the primary containment array.</p>
+<p class="text-text-muted border-l-2 border-border-default pl-sm italic">Decisions: Marked sector for high-frequency scanning. Initiated containment protocol Beta-7.</p>
+</div>
+<div class="flex items-center space-x-xs mb-md flex-wrap gap-y-2">
+<span class="px-2 py-1 bg-surface-container-low border border-border-default rounded-DEFAULT font-label-md text-label-md text-text-muted flex items-center space-x-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="account_tree">account_tree</span>
+<span>Project: Obsidian Shield</span>
+</span>
+</div>
+<div class="flex space-x-sm mt-auto pt-sm border-t border-border-subtle">
+<button class="flex-1 py-2 px-3 border border-primary text-primary-container bg-surface-container hover:bg-surface-container-high hover:shadow-[0_0_10px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md text-center">
+                        Mark Reviewed
+                    </button>
+<button class="py-2 px-3 border border-border-default text-text-muted hover:border-text-muted transition-colors font-label-md text-label-md">
+                        Edit
+                    </button>
+</div>
+</article>
+<!-- Quest Line Entry -->
+<article class="bg-bg-panel rounded-DEFAULT border border-border-default p-md glow-quest flex flex-col relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-sm opacity-50 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-rune-quest text-2xl" data-icon="account_tree">account_tree</span>
+</div>
+<header class="mb-sm">
+<div class="flex items-center space-x-xs mb-xs">
+<span class="w-2 h-2 rounded-full bg-rune-quest shadow-[0_0_8px_rgba(212,169,63,0.8)]"></span>
+<span class="font-label-md text-label-md text-rune-quest uppercase tracking-widest">Quest Line Update</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface leading-tight">Restructuring the Core Archives</h2>
+</header>
+<div class="font-body-sm text-body-sm text-on-surface-variant mb-md flex-1">
+<p class="mb-xs">Distilled Summary: Autonomous script finalized the migration of legacy data nodes to the new decentralized matrix. Discrepancies found in 3 ancient tomes.</p>
+<p class="text-text-muted border-l-2 border-border-default pl-sm italic">Decisions: Quarantined affected tomes. Awaiting manual scribe intervention.</p>
+</div>
+<div class="flex items-center space-x-xs mb-md flex-wrap gap-y-2">
+<span class="px-2 py-1 bg-surface-container-low border border-border-default rounded-DEFAULT font-label-md text-label-md text-text-muted flex items-center space-x-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="menu_book">menu_book</span>
+<span>Tome: Legacy of the First</span>
+</span>
+</div>
+<div class="flex space-x-sm mt-auto pt-sm border-t border-border-subtle">
+<button class="flex-1 py-2 px-3 border border-primary text-primary-container bg-surface-container hover:bg-surface-container-high hover:shadow-[0_0_10px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md text-center">
+                        Mark Reviewed
+                    </button>
+<button class="py-2 px-3 border border-error/50 text-error/80 hover:border-error hover:text-error hover:bg-error-container/20 transition-colors font-label-md text-label-md">
+                        Prune
+                    </button>
+</div>
+</article>
+<!-- Chronicle Entry (Faint Pulse) -->
+<article class="bg-bg-panel rounded-DEFAULT border border-border-default p-md glow-chronicle flex flex-col relative overflow-hidden group opacity-80 hover:opacity-100 transition-opacity">
+<div class="absolute top-0 right-0 p-sm opacity-50 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-rune-chronicle text-2xl" data-icon="auto_stories">auto_stories</span>
+</div>
+<header class="mb-sm">
+<div class="flex items-center space-x-xs mb-xs">
+<span class="w-2 h-2 rounded-full bg-rune-chronicle shadow-[0_0_8px_rgba(217,139,74,0.5)]"></span>
+<span class="font-label-md text-label-md text-rune-chronicle uppercase tracking-widest">Chronicle Update</span>
+</div>
+<h2 class="font-headline-md text-headline-md text-on-surface leading-tight">Dialogue with Entity 'Weaver'</h2>
+</header>
+<div class="font-body-sm text-body-sm text-on-surface-variant mb-md flex-1">
+<p class="mb-xs">Distilled Summary: Prolonged interaction resulting in the exchange of 4 new cryptic theorems. Entity showed elevated levels of algorithmic anxiety.</p>
+<p class="text-text-muted border-l-2 border-border-default pl-sm italic">Decisions: Logged theorems to temporary storage. Did not engage in counter-theories.</p>
+</div>
+<div class="flex items-center space-x-xs mb-md flex-wrap gap-y-2">
+<span class="px-2 py-1 bg-surface-container-low border border-border-default rounded-DEFAULT font-label-md text-label-md text-text-muted flex items-center space-x-1">
+<span class="material-symbols-outlined text-[14px] text-rune-entity" data-icon="token">token</span>
+<span>Entity: Weaver-7</span>
+</span>
+</div>
+<div class="flex space-x-sm mt-auto pt-sm border-t border-border-subtle">
+<button class="flex-1 py-2 px-3 border border-primary text-primary-container bg-surface-container hover:bg-surface-container-high hover:shadow-[0_0_10px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md text-center">
+                        Mark Reviewed
+                    </button>
+<button class="py-2 px-3 border border-border-default text-text-muted hover:border-text-muted transition-colors font-label-md text-label-md">
+                        Edit
+                    </button>
+</div>
+</article>
+</div>
+</main>
+</body></html>
