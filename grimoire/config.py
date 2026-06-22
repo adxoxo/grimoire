@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     embed_model: str = "nomic-embed-text"
     llm_model: str = "llama3.2"
 
+    # Groq (optional). When a key is set, completion uses Groq first and falls back to
+    # Ollama on rate-limit/timeout. Embeddings always stay on Ollama (Groq has none).
+    groq_api_key: str = ""
+    groq_url: str = "https://api.groq.com/openai/v1"
+    groq_model: str = "llama-3.3-70b-versatile"
+
     # Embedding dimensions. Must match the vec0 schema (chunk_vectors.embedding float[768]).
     embed_dim: int = 768
 
