@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "grimoire": {
+      "command": "/home/adyu/apps/grimoire/.venv/bin/python",
+      "args": ["-m", "grimoire.gateway"],
+      "env": {
+        "GRIMOIRE_DB_PATH": "/home/adyu/apps/grimoire/data/grimoire.db",
+        "GRIMOIRE_PROVIDER": "ollama",
+        "GRIMOIRE_OLLAMA_URL": "http://172.25.80.1:11434",
+        "GRIMOIRE_EMBED_MODEL": "nomic-embed-text",
+        "GRIMOIRE_LLM_MODEL": "llama3.2"
+      }
+    }
+  }
+}
