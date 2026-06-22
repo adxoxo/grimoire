@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: #0c0b14;
+  color: #e5e0ee;
+  font-family: 'Spectral', serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #d4a93f;
+  color: #39300b;
+}
+
+/* Material Symbols defaults */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+}
+
+/* Node glows (steady) — atmosphere lives here, per the design system */
+.glow-quest { box-shadow: 0 0 15px 2px rgba(212, 169, 63, 0.6); }
+.glow-tome { box-shadow: 0 0 15px 2px rgba(91, 141, 217, 0.6); }
+.glow-chronicle { box-shadow: 0 0 15px 2px rgba(217, 139, 74, 0.6); }
+.glow-entity { box-shadow: 0 0 15px 2px rgba(157, 107, 217, 0.6); }
+
+/* Status-as-glow: unreviewed nodes pulse faintly; reviewed nodes glow steady */
+@keyframes pulse-quest { 0%,100% { box-shadow: 0 0 8px rgba(212,169,63,0.25); } 50% { box-shadow: 0 0 22px rgba(212,169,63,0.75); } }
+@keyframes pulse-tome { 0%,100% { box-shadow: 0 0 8px rgba(91,141,217,0.25); } 50% { box-shadow: 0 0 22px rgba(91,141,217,0.75); } }
+@keyframes pulse-chronicle { 0%,100% { box-shadow: 0 0 8px rgba(217,139,74,0.25); } 50% { box-shadow: 0 0 22px rgba(217,139,74,0.75); } }
+@keyframes pulse-entity { 0%,100% { box-shadow: 0 0 8px rgba(157,107,217,0.25); } 50% { box-shadow: 0 0 22px rgba(157,107,217,0.75); } }
+.pulse-quest { animation: pulse-quest 3s ease-in-out infinite; }
+.pulse-tome { animation: pulse-tome 3s ease-in-out infinite; }
+.pulse-chronicle { animation: pulse-chronicle 3s ease-in-out infinite; }
+.pulse-entity { animation: pulse-entity 3s ease-in-out infinite; }
+
+/* SVG node glow pulse (for circles in the constellation) */
+@keyframes svg-pulse { 0%,100% { opacity: 0.45; } 50% { opacity: 1; } }
+.svg-pulse { animation: svg-pulse 3s ease-in-out infinite; }
+
+/* Tome reader: grimoire chrome on the panel, clean legible content inside */
+.tome-content { font-family: 'Spectral', serif; color: #e5e0ee; line-height: 1.7; font-size: 16px; }
+.tome-content h1, .tome-content h2, .tome-content h3, .tome-content h4 { font-family: 'Cinzel', serif; color: #e3d3a0; margin: 1.4em 0 0.5em; line-height: 1.3; }
+.tome-content h1 { font-size: 28px; } .tome-content h2 { font-size: 22px; } .tome-content h3 { font-size: 18px; }
+.tome-content p { margin: 0 0 1em; }
+.tome-content a { color: #5b8dd9; }
+.tome-content code { font-family: ui-monospace, monospace; background: #16142b; padding: 2px 5px; border-radius: 4px; font-size: 0.9em; color: #cdc6b7; }
+.tome-content pre { background: #0c0b14; border: 1px solid #29263f; border-radius: 6px; padding: 12px; overflow-x: auto; }
+.tome-content pre code { background: none; padding: 0; }
+.tome-content ul, .tome-content ol { margin: 0 0 1em 1.4em; }
+.tome-content li { margin: 0.3em 0; }
+.tome-content blockquote { border-left: 3px solid #29263f; padding-left: 1em; color: #9b96b8; margin: 0 0 1em; }
+.tome-content table { border-collapse: collapse; margin: 0 0 1em; display: block; overflow-x: auto; }
+.tome-content th, .tome-content td { border: 1px solid #29263f; padding: 6px 10px; text-align: left; }
+.tome-content hr { border: none; border-top: 1px solid #29263f; margin: 1.5em 0; }
+
+/* Thin themed scrollbars so content panels stay scholarly */
+* { scrollbar-width: thin; scrollbar-color: #29263f transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #29263f; border-radius: 9999px; }
+*::-webkit-scrollbar-track { background: transparent; }
