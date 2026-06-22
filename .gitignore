@@ -15,3 +15,8 @@ backups/
 
 # Local config
 .env
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/playwright-report/
