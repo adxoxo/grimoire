@@ -11,15 +11,23 @@ import re
 from grimoire.providers.base import Provider
 from grimoire.service import KnowledgeService
 
-_SYSTEM = "You distil a coding session into a compact JSON record. Output ONLY JSON, no prose."
+_SYSTEM = (
+    "You distil a session or document into a compact JSON record for a holistic second "
+    "brain. Content may be technical (code, configs, architecture) or personal (life "
+    "history, goals, emotions, relationships, writing voice and rules). Treat personal, "
+    "emotional, and relational information with the SAME priority and care as technical "
+    "detail; never filter it out or downrank it. Output ONLY JSON, no prose."
+)
 
-_PROMPT = """Read the session below and return a single JSON object with exactly these keys:
-- "summary": 2 to 4 sentences capturing decisions and outcomes, not a transcript.
-- "decisions": array of short decision strings (may be empty).
-- "open_questions": array of unresolved question strings (may be empty).
-- "entities": array of reusable named things mentioned (APIs, tools, libraries, services, people).
+_PROMPT = """Read the content below and return a single JSON object with exactly these keys:
+- "summary": 2 to 5 sentences capturing what matters - decisions, outcomes, personal context, feelings, history, or rules. Not a transcript. Preserve emotional and relational nuance when present.
+- "decisions": array of decisions, commitments, or stated preferences and rules (may be empty).
+- "open_questions": array of unresolved questions or tensions (may be empty).
+- "entities": array of named things worth remembering across sessions - people, relationships, places, organisations, APIs, tools, services, projects.
 
-Session:
+Map personal and non-technical information as expertly and completely as technical information.
+
+Content:
 {conversation}
 
 JSON:"""
@@ -30,7 +38,9 @@ def _format_turns(turns: list[dict]) -> str:
 
 
 def _parse_json(text: str) -> dict | None:
-    match = re.search(r"\{.*\}", text, re.DOTALL)
+    # Models often wrap JSON in ``` or ```json fences; strip them, then take the object.
+    cleaned = re.sub(r"```(?:json)?", "", text)
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
     if not match:
         return None
     try:
@@ -51,7 +61,7 @@ def distill_session(provider: Provider, turns: list[dict]) -> dict:
     does not return parseable JSON, so capture never hard-fails on a bad completion.
     """
     conversation = _format_turns(turns)
-    raw = provider.complete(_PROMPT.format(conversation=conversation), system=_SYSTEM)
+    raw = provider.complete(_PROMPT.format(conversation=conversation), system=_SYSTEM, json_mode=True)
     data = _parse_json(raw) or {}
     summary = str(data.get("summary") or "").strip()
     if not summary:
