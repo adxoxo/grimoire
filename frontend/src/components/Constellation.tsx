@@ -33,10 +33,12 @@ interface Props {
   graph: Graph
   selectedId: string | null
   highlightType: NodeType | null
+  filterText?: string
+  hiddenTypes?: Set<NodeType>
   onSelect: (node: GraphNode | null) => void
 }
 
-export default function Constellation({ graph, selectedId, highlightType, onSelect }: Props) {
+export default function Constellation({ graph, selectedId, highlightType, filterText, hiddenTypes, onSelect }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const gRef = useRef<SVGGElement>(null)
   const transformRef = useRef<ZoomTransform>(zoomIdentity)
@@ -149,6 +151,14 @@ export default function Constellation({ graph, selectedId, highlightType, onSele
     simRef.current?.alphaTarget(0.3).restart()
   }
 
+  // Filtering: type toggles hide nodes entirely; text + nav-type emphasise (dim others).
+  const q = (filterText ?? '').trim().toLowerCase()
+  const isVisible = (n: SimNode) => !hiddenTypes?.has(n.type)
+  const isMatched = (n: SimNode) =>
+    isVisible(n) &&
+    (!highlightType || n.type === highlightType) &&
+    (!q || n.title.toLowerCase().includes(q))
+
   return (
     <svg ref={svgRef} className="absolute inset-0 w-full h-full" style={{ cursor: 'grab' }}>
       <g ref={gRef}>
@@ -158,7 +168,8 @@ export default function Constellation({ graph, selectedId, highlightType, onSele
             const s = typeof l.source === 'string' ? nodeById.get(l.source) : l.source
             const t = typeof l.target === 'string' ? nodeById.get(l.target) : l.target
             if (!s || !t) return null
-            const dim = highlightType && s.type !== highlightType && t.type !== highlightType
+            if (!isVisible(s) || !isVisible(t)) return null // hidden by type filter
+            const bright = isMatched(s) && isMatched(t)
             return (
               <line
                 key={i}
@@ -168,7 +179,7 @@ export default function Constellation({ graph, selectedId, highlightType, onSele
                 y2={t.y}
                 stroke={edgeColor(s.type, t.type)}
                 strokeWidth={1.2}
-                opacity={dim ? 0.08 : 0.4}
+                opacity={bright ? 0.4 : 0.08}
               />
             )
           })}
@@ -180,7 +191,8 @@ export default function Constellation({ graph, selectedId, highlightType, onSele
             const rune = RUNE[n.type]
             const r = RADIUS[n.type]
             const selected = n.id === selectedId
-            const dim = highlightType ? n.type !== highlightType : false
+            if (!isVisible(n)) return null // hidden by type filter
+            const dim = !isMatched(n)
             const unreviewed = n.status === 'unreviewed'
             const glow = `${selected ? r * 0.7 : r * 0.45}px`
             return (
@@ -188,7 +200,7 @@ export default function Constellation({ graph, selectedId, highlightType, onSele
                 key={n.id}
                 className="gnode"
                 transform={`translate(${n.x ?? 0},${n.y ?? 0})`}
-                style={{ cursor: 'pointer', opacity: dim ? 0.22 : 1, transition: 'opacity 300ms' }}
+                style={{ cursor: 'pointer', opacity: dim ? 0.18 : 1, transition: 'opacity 300ms' }}
                 onPointerDown={(e) => {
                   e.preventDefault()
                   startDrag(n)

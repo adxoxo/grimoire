@@ -71,10 +71,27 @@ async function get<T>(url: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function post<T>(url: string): Promise<T> {
-  const res = await fetch(url, { method: 'POST' })
+async function post<T>(url: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: body ? { 'content-type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   return res.json() as Promise<T>
+}
+
+async function del<T>(url: string): Promise<T> {
+  const res = await fetch(url, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return res.json() as Promise<T>
+}
+
+export interface NewNode {
+  type: 'project' | 'entity' | 'document'
+  title: string
+  context?: string
+  project?: string
 }
 
 export const api = {
@@ -88,4 +105,14 @@ export const api = {
     get<{ results: SearchHit[] }>(
       `/api/search?q=${encodeURIComponent(q)}${project ? `&project=${encodeURIComponent(project)}` : ''}`,
     ),
+  createNode: (node: NewNode) => post<{ id: string; type: string; title: string }>('/api/nodes', node),
+  deleteEdge: (src: string, dst: string, rel: string) =>
+    del<{ deleted: number }>(
+      `/api/edges?src=${encodeURIComponent(src)}&dst=${encodeURIComponent(dst)}&rel=${encodeURIComponent(rel)}`,
+    ),
+  compact: () =>
+    post<{ compacted: { project: string; clusters_merged: number; originals_archived: number }[] }>(
+      '/api/maintenance/compact',
+    ),
+  reembed: () => post<{ reembedded: number }>('/api/maintenance/reembed'),
 }
