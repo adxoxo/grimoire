@@ -3,12 +3,21 @@ name = "grimoire"
 version = "0.1.0"
 description = "The Grimoire: a local shared knowledge base served to coding agents over one MCP gateway."
 requires-python = ">=3.12"
-# Phase 0 dependencies only. The FastMCP gateway + FastAPI server stack
-# (fastmcp, fastapi, uvicorn) is added in Phase 2 when there is server code to run.
 dependencies = [
     "sqlite-vec>=0.1.9",
     "httpx>=0.28",
     "pydantic-settings>=2.0",
+    # HTTP API serving the dashboard + n8n capture endpoints.
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    # MCP gateway.
+    "fastmcp>=2.0",
+    # Document conversion (Phase 1): PDF and HTML to markdown. Never embed raw bytes.
+    "pymupdf4llm>=0.0.17",
+    "markdownify>=0.13",
+    # Gateway tracing (Phase 2).
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
 ]
 
 [project.optional-dependencies]

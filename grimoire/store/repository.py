@@ -106,6 +106,48 @@ class Repository:
         row = self._conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,)).fetchone()
         return self._node_row_to_dict(row) if row else None
 
+    def list_nodes(self, type: str | None = None) -> list[dict[str, Any]]:
+        """All nodes, optionally filtered by type. Used by the constellation graph."""
+        if type is not None:
+            rows = self._conn.execute(
+                "SELECT id, type, title, status, updated_at FROM nodes WHERE type = ?"
+                " ORDER BY updated_at DESC",
+                (type,),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT id, type, title, status, updated_at FROM nodes ORDER BY updated_at DESC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_edges(self) -> list[dict[str, Any]]:
+        """All edges. Used by the constellation graph."""
+        rows = self._conn.execute("SELECT src, dst, rel FROM edges").fetchall()
+        return [dict(r) for r in rows]
+
+    def nodes_by_status(self, status: str) -> list[dict[str, Any]]:
+        """Nodes in a given status (e.g. 'unreviewed'), newest first. The review queue."""
+        rows = self._conn.execute(
+            "SELECT id, type, title, status, context_summary, updated_at FROM nodes"
+            " WHERE status = ? ORDER BY updated_at DESC",
+            (status,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def set_status(self, node_id: str, status: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE nodes SET status = ?, updated_at = ? WHERE id = ?",
+                (status, _now(), node_id),
+            )
+
+    def node_chunk_texts(self, node_id: str) -> list[str]:
+        """A node's chunk contents in order (fallback document body if no full text)."""
+        rows = self._conn.execute(
+            "SELECT content FROM chunks WHERE node_id = ? ORDER BY seq", (node_id,)
+        ).fetchall()
+        return [r["content"] for r in rows]
+
     def link_nodes(self, src: str, dst: str, rel: str) -> None:
         if rel not in EDGE_RELS:
             raise ValueError(f"unknown edge relation: {rel!r}")
@@ -170,6 +212,67 @@ class Repository:
             })
         return results
 
+    # ---- traversal for the read path ------------------------------------
+
+    def candidate_node_ids(self, project_id: str, max_hops: int = 2) -> list[str]:
+        """Nodes reachable from a project within max_hops, treated undirected,
+        with the supernode rule: traversal never expands OUTWARD from an entity
+        node. Entities are included as candidates when reached, but a shared entity
+        (e.g. a common API rune) cannot bridge to unrelated projects' nodes.
+        """
+        visited = {project_id}
+        frontier = {project_id}
+        for _ in range(max_hops):
+            if not frontier:
+                break
+            nxt: set[str] = set()
+            for nid in frontier:
+                row = self._conn.execute("SELECT type FROM nodes WHERE id = ?", (nid,)).fetchone()
+                if row is None or row["type"] == "entity":
+                    continue  # entity cap: do not traverse out of an entity
+                neighbours = self._conn.execute(
+                    "SELECT dst AS other FROM edges WHERE src = ?"
+                    " UNION SELECT src AS other FROM edges WHERE dst = ?",
+                    (nid, nid),
+                ).fetchall()
+                for r in neighbours:
+                    if r["other"] not in visited:
+                        visited.add(r["other"])
+                        nxt.add(r["other"])
+            frontier = nxt
+        return list(visited)
+
+    def scored_chunks(
+        self, query_embedding: list[float], node_ids: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """Cosine distance of every candidate chunk to the query, with node metadata.
+
+        node_ids=None scores all chunks (global). A list restricts to chunks of those
+        nodes (the narrowed candidate set). Recency weighting and top-k are applied by
+        the caller, so this returns the full scored candidate set, not a truncated KNN.
+        """
+        if len(query_embedding) != self.embed_dim:
+            raise ValueError(f"query has {len(query_embedding)} dims, expected {self.embed_dim}")
+        qv = serialize_float32(query_embedding)
+        base = (
+            "SELECT cv.chunk_id, c.node_id, c.content, n.title, n.type, n.status, n.updated_at,"
+            " vec_distance_cosine(cv.embedding, ?) AS distance"
+            " FROM chunk_vectors cv"
+            " JOIN chunks c ON c.id = cv.chunk_id"
+            " JOIN nodes n ON n.id = c.node_id"
+        )
+        if node_ids is not None:
+            if not node_ids:
+                return []
+            placeholders = ",".join("?" * len(node_ids))
+            rows = self._conn.execute(
+                f"{base} WHERE c.node_id IN ({placeholders}) ORDER BY distance",
+                (qv, *node_ids),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(f"{base} ORDER BY distance", (qv,)).fetchall()
+        return [dict(r) for r in rows]
+
     # ---- projects -------------------------------------------------------
 
     def upsert_project(
@@ -233,6 +336,8 @@ class Repository:
         raw_turns: list[dict[str, Any]] | None = None,
         summary_embedding: list[float] | None = None,
         title: str | None = None,
+        created_at: str | None = None,
+        extra_meta: dict[str, Any] | None = None,
     ) -> str:
         """Write a distilled session record, linked to its project.
 
@@ -240,6 +345,9 @@ class Repository:
         get-or-creates each mentioned entity and links it, stores raw turns in the
         raw layer, and embeds the distilled summary when an embedding is supplied.
         Embeddings come from the caller via the provider interface, never from here.
+
+        created_at backdates the node (used by the history backfill). extra_meta is
+        merged into the node meta (e.g. open_questions from distillation).
         """
         proj = self._get_by_type_title("project", project)
         if proj is None:
@@ -247,8 +355,8 @@ class Repository:
         decisions = decisions or []
         entities = entities or []
         mem_id = _new_id()
-        now = _now()
-        meta = json.dumps({"decisions": decisions, "entities": entities})
+        now = created_at or _now()
+        meta = json.dumps({"decisions": decisions, "entities": entities, **(extra_meta or {})})
         with self._conn:
             self._conn.execute(
                 "INSERT INTO nodes(id,type,title,status,meta,context_summary,created_at,updated_at)"
@@ -302,6 +410,45 @@ class Repository:
                 "INSERT INTO chunk_vectors(chunk_id, embedding) VALUES (?, ?)",
                 (chunk_id, serialize_float32(embedding)),
             )
+
+    # ---- compaction support ---------------------------------------------
+
+    def project_memories(self, project_id: str, include_archived: bool = False) -> list[dict[str, Any]]:
+        """Memory nodes belonging to a project, each with its summary chunk id (seq 0)."""
+        sql = (
+            "SELECT n.id, n.title, n.status, n.created_at, n.context_summary,"
+            " (SELECT c.id FROM chunks c WHERE c.node_id = n.id ORDER BY c.seq LIMIT 1) AS chunk_id"
+            " FROM edges e JOIN nodes n ON n.id = e.src"
+            " WHERE e.dst = ? AND e.rel = 'belongs_to' AND n.type = 'memory'"
+        )
+        if not include_archived:
+            sql += " AND (n.status IS NULL OR n.status != 'archived')"
+        return [dict(r) for r in self._conn.execute(sql, (project_id,)).fetchall()]
+
+    def vector_distance(self, chunk_a: str, chunk_b: str) -> float | None:
+        """Cosine distance between two stored chunk vectors (for topic clustering)."""
+        row = self._conn.execute(
+            "SELECT vec_distance_cosine("
+            " (SELECT embedding FROM chunk_vectors WHERE chunk_id = ?),"
+            " (SELECT embedding FROM chunk_vectors WHERE chunk_id = ?)) AS d",
+            (chunk_a, chunk_b),
+        ).fetchone()
+        return None if row is None or row["d"] is None else float(row["d"])
+
+    def archive_node(self, node_id: str) -> None:
+        """Archive a node: mark it archived and drop it from the embedded layer (so it
+        no longer surfaces in retrieval), keeping the node and its raw turns for audit.
+        """
+        with self._conn:
+            self._conn.execute(
+                "UPDATE nodes SET status = 'archived', updated_at = ? WHERE id = ?",
+                (_now(), node_id),
+            )
+            self._conn.execute(
+                "DELETE FROM chunk_vectors WHERE chunk_id IN (SELECT id FROM chunks WHERE node_id = ?)",
+                (node_id,),
+            )
+            self._conn.execute("DELETE FROM chunks WHERE node_id = ?", (node_id,))
 
     # ---- maintenance ----------------------------------------------------
 

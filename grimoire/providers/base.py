@@ -21,10 +21,15 @@ class Provider(ABC):
 
     @abstractmethod
     def embed(self, text: str) -> list[float]:
-        """Embed one piece of text into an embed_dim-length vector."""
+        """Embed a document/passage into an embed_dim-length vector."""
+
+    def embed_query(self, text: str) -> list[float]:
+        """Embed a search query. Defaults to embed(); asymmetric models override it
+        (e.g. nomic-embed-text needs distinct query/document prefixes)."""
+        return self.embed(text)
 
     def embed_many(self, texts: list[str]) -> list[list[float]]:
-        """Embed a batch. Default loops; override if the backend supports batching."""
+        """Embed a batch of documents. Default loops; override if the backend batches."""
         return [self.embed(t) for t in texts]
 
     @abstractmethod
