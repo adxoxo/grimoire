@@ -21,9 +21,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from grimoire.compaction import compact_project, consolidate_context
 from grimoire.config import settings
 from grimoire.distill import capture_session
 from grimoire.providers import get_provider
+from grimoire.reembed import reembed_all
 from grimoire.service import KnowledgeService
 from grimoire.store import Repository
 
@@ -173,6 +175,69 @@ def capture(payload: CapturePayload) -> dict:
             payload.project, meta=payload.meta, context_patch=payload.context_patch, status=payload.status
         )
         return {"kind": "project_context", "project_id": pid, "name": payload.project}
+
+
+# ---- write: scribe a new node (Task 2) ----
+
+
+class NewNode(BaseModel):
+    type: Literal["project", "entity", "document"]
+    title: str
+    meta: dict | None = None
+    context: str | None = None  # project context_summary, or a node's body
+    project: str | None = None  # for entity/document: link belongs_to this quest line
+
+
+@app.post("/api/nodes")
+def create_node(payload: NewNode) -> dict:
+    """Scribe a new node. Quest line -> upsert_project; rune/tome -> add_node (+link)."""
+    with _repo() as repo:
+        if payload.type == "project":
+            pid = repo.upsert_project(payload.title, meta=payload.meta, context_patch=payload.context)
+            return {"id": pid, "type": "project", "title": payload.title}
+        node_id = repo.add_node(
+            payload.type, payload.title, status="unreviewed", meta=payload.meta, context_summary=payload.context
+        )
+        if payload.project:
+            proj = repo.get_project(payload.project)
+            if proj is None:
+                proj = {"id": repo.upsert_project(payload.project)}
+            repo.link_nodes(node_id, proj["id"], "belongs_to")
+        return {"id": node_id, "type": payload.type, "title": payload.title}
+
+
+# ---- write: prune an edge (Task 3) ----
+
+
+@app.delete("/api/edges")
+def delete_edge(src: str, dst: str, rel: str) -> dict:
+    """Sever a link between two nodes (the prune action)."""
+    with _repo() as repo:
+        deleted = repo.unlink_nodes(src, dst, rel)
+        return {"deleted": deleted, "edge": {"src": src, "dst": dst, "rel": rel}}
+
+
+# ---- maintenance triggers (Task 4 settings panel) ----
+
+
+@app.post("/api/maintenance/compact")
+def run_compaction() -> dict:
+    """Run compaction + context consolidation across all projects (uses the LLM chain)."""
+    with _repo() as repo:
+        svc = KnowledgeService(repo, _provider)
+        results = []
+        for project in [n["title"] for n in repo.list_nodes(type="project")]:
+            stats = compact_project(svc, project)
+            consolidate_context(svc, project)
+            results.append(stats)
+    return {"compacted": results}
+
+
+@app.post("/api/maintenance/reembed")
+def run_reembed() -> dict:
+    """Re-embed every chunk through the provider (the model-change maintenance path)."""
+    with _repo() as repo:
+        return {"reembedded": reembed_all(repo, _provider)}
 
 
 # ---- serve the built dashboard (production / Docker) ----
