@@ -157,6 +157,14 @@ class Repository:
                 (src, dst, rel, _now()),
             )
 
+    def unlink_nodes(self, src: str, dst: str, rel: str) -> int:
+        """Sever an edge. Returns rows deleted (0 if it did not exist)."""
+        with self._conn:
+            cur = self._conn.execute(
+                "DELETE FROM edges WHERE src = ? AND dst = ? AND rel = ?", (src, dst, rel)
+            )
+            return cur.rowcount
+
     # ---- chunks + vectors -----------------------------------------------
 
     def add_chunk(self, node_id: str, seq: int, content: str, embedding: list[float]) -> str:
