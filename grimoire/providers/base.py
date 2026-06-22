@@ -33,5 +33,6 @@ class Provider(ABC):
         return [self.embed(t) for t in texts]
 
     @abstractmethod
-    def complete(self, prompt: str, system: str | None = None) -> str:
-        """Single-shot text completion (used for distillation/compaction)."""
+    def complete(self, prompt: str, system: str | None = None, json_mode: bool = False) -> str:
+        """Single-shot text completion. json_mode forces syntactically valid JSON output
+        (used by distillation), where the backend supports it."""

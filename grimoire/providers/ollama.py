@@ -50,10 +50,12 @@ class OllamaProvider(Provider):
             )
         return vec
 
-    def complete(self, prompt: str, system: str | None = None) -> str:
+    def complete(self, prompt: str, system: str | None = None, json_mode: bool = False) -> str:
         body: dict[str, object] = {"model": self._llm_model, "prompt": prompt, "stream": False}
         if system is not None:
             body["system"] = system
+        if json_mode:
+            body["format"] = "json"
         resp = self._client.post("/api/generate", json=body)
         resp.raise_for_status()
         return resp.json()["response"]

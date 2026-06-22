@@ -37,6 +37,8 @@ class FakeProvider(Provider):
         norm = math.sqrt(sum(v * v for v in vals)) or 1.0
         return [v / norm for v in vals]
 
-    def complete(self, prompt: str, system: str | None = None) -> str:
-        digest = hashlib.sha256((system or "") .encode() + prompt.encode()).hexdigest()[:12]
+    def complete(self, prompt: str, system: str | None = None, json_mode: bool = False) -> str:
+        digest = hashlib.sha256((system or "").encode() + prompt.encode()).hexdigest()[:12]
+        if json_mode:
+            return '{"summary": "fake distilled summary", "decisions": [], "open_questions": [], "entities": []}'
         return f"[fake completion {digest} for {len(prompt)} chars]"
