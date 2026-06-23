@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api, type LinkedNode, type Project } from '../api'
-import { RUNE, type NodeType } from '../theme'
+import { api, planner, type LinkedNode, type Project, type Task } from '../api'
+import { RUNE, QUADRANT, type NodeType } from '../theme'
 
 function humanize(key: string): string {
   return key.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
@@ -27,13 +27,31 @@ function LinkedCard({ node }: { node: LinkedNode }) {
 export default function ProjectHub() {
   const { name = '' } = useParams()
   const [project, setProject] = useState<Project | null>(null)
+  const [tasks, setTasks] = useState<Task[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setProject(null)
     setError(null)
-    api.project(name).then(setProject).catch((e) => setError(String(e)))
+    setTasks([])
+    api.project(name).then((p) => {
+      setProject(p)
+      planner.projectTasks(p.id).then((r) => setTasks(r.tasks)).catch(() => {})
+    }).catch((e) => setError(String(e)))
   }, [name])
+
+  function refreshTasks() {
+    if (project) planner.projectTasks(project.id).then((r) => setTasks(r.tasks)).catch(() => {})
+  }
+  async function completeTask(id: string) {
+    await planner.completeTask(id, true)
+    refreshTasks()
+  }
+  async function deleteTask(id: string, title: string) {
+    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return
+    await planner.deleteTask(id)
+    refreshTasks()
+  }
 
   if (error) {
     return (
@@ -85,6 +103,38 @@ export default function ProjectHub() {
                 {project.context_summary || 'No context recorded yet.'}
               </p>
             </div>
+          </section>
+
+          {/* Open tasks (the graph payoff: tasks linked to this project node) */}
+          <section>
+            <h3 className="font-headline-sm text-headline-sm text-on-surface mb-3 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-rune-quest">checklist</span>
+              Open tasks
+              {tasks.length > 0 && <span className="font-label-md text-label-md text-text-tertiary">({tasks.length})</span>}
+            </h3>
+            {tasks.length > 0 ? (
+              <div className="space-y-2">
+                {tasks.map((t) => {
+                  const meta = t.quadrant ? QUADRANT[t.quadrant] : QUADRANT.Q4
+                  return (
+                    <div key={t.id} className="flex items-start gap-3 p-3 rounded bg-bg-panel border border-border-default group">
+                      <button onClick={() => completeTask(t.id)} className="mt-0.5 w-4 h-4 rounded-sm border border-border-default flex-shrink-0 hover:bg-rune-quest/40 transition-colors" aria-label="Complete" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-body-md text-body-md text-on-surface leading-tight">{t.title}</p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="font-label-md text-[9px] uppercase px-1.5 py-0.5 rounded border" style={{ color: meta.color, borderColor: `${meta.color}4d` }}>{meta.label}</span>
+                          {t.goal_title && <span className="font-label-md text-[9px] uppercase text-text-tertiary">→ {t.goal_title}</span>}
+                          {t.estimate_minutes ? <span className="font-label-md text-[10px] text-text-tertiary">{t.estimate_minutes}m</span> : null}
+                        </div>
+                      </div>
+                      <button onClick={() => deleteTask(t.id, t.title)} className="material-symbols-outlined text-[16px] text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-status-error transition-all" aria-label="Delete task">delete</button>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="font-body-sm text-body-sm text-text-tertiary italic">No open tasks linked. Capture one in Today and link it here.</p>
+            )}
           </section>
 
           {/* Linked chronicles + tomes */}

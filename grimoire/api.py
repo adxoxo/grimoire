@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from grimoire.compaction import compact_project, consolidate_context
 from grimoire.config import settings
 from grimoire.distill import capture_session
+from grimoire.planner.web import router as planner_router
 from grimoire.providers import get_provider
 from grimoire.reembed import reembed_all
 from grimoire.service import KnowledgeService
@@ -35,9 +36,18 @@ app = FastAPI(title="The Grimoire", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
+
+# The planner (Today + Flow) tabs. Registered before the SPA catch-all below so its
+# /api/planner/* routes are not swallowed by the index.html fallback.
+#
+# NOTE: app.include_router() is broken in this pinned fastapi 0.138.0 / starlette 1.3.1
+# combination (it collapses every sub-route into one empty-path route). The router's
+# APIRoute objects are themselves correct and already carry their full /api/planner/*
+# paths, so we splice them straight in. Revisit if the dependency pins change.
+app.router.routes.extend(planner_router.routes)
 
 # Reused across requests; the store connection is per-request.
 _provider = get_provider()
@@ -71,6 +81,15 @@ def node(node_id: str) -> dict:
         if found is None:
             raise HTTPException(status_code=404, detail="node not found")
         return found
+
+
+@app.delete("/api/nodes/{node_id}")
+def delete_node(node_id: str) -> dict:
+    """Hard-delete a node and its dependents (edges, chunks, vectors, raw turns)."""
+    with _repo() as repo:
+        if repo.get_node(node_id) is None:
+            raise HTTPException(status_code=404, detail="node not found")
+        return {"deleted": repo.delete_node(node_id), "node_id": node_id}
 
 
 @app.get("/api/projects/{name}")
