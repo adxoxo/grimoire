@@ -14,10 +14,11 @@ interface Props {
   connections: number
   edges: EdgeRow[]
   onPrune: (edge: EdgeRow) => void
+  onDelete: (node: GraphNode) => void
   onClose: () => void
 }
 
-export default function NodeDetailPanel({ node, connections, edges, onPrune, onClose }: Props) {
+export default function NodeDetailPanel({ node, connections, edges, onPrune, onDelete, onClose }: Props) {
   const navigate = useNavigate()
   const rune = RUNE[node.type]
   const unreviewed = node.status === 'unreviewed'
@@ -99,6 +100,15 @@ export default function NodeDetailPanel({ node, connections, edges, onPrune, onC
             Open tome
           </button>
         )}
+        <button
+          className="w-full mt-2 py-2 bg-transparent text-text-muted border border-border-default rounded hover:border-status-error hover:text-status-error transition-all duration-300 font-label-md text-label-md uppercase tracking-wider flex items-center justify-center gap-2"
+          onClick={() => {
+            if (confirm(`Banish "${node.title}"? This removes the ${rune.label.toLowerCase()} and all its links, chunks, and history. Irreversible.`)) onDelete(node)
+          }}
+        >
+          <span className="material-symbols-outlined text-[16px]">delete_forever</span>
+          Banish node
+        </button>
       </div>
     </aside>
   )

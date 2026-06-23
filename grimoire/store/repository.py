@@ -165,6 +165,26 @@ class Repository:
             )
             return cur.rowcount
 
+    def delete_node(self, node_id: str) -> int:
+        """Hard-delete a node and everything that depends on it: its vectors, chunks,
+        raw turns, and every edge it touches (as src or dst). Returns 1 if the node
+        existed, else 0.
+
+        Note: planner tasks/goals reference a project node by a non-FK project_id; those
+        links are intentionally not touched here (cross-subsystem), so a deleted project
+        simply stops resolving to a title.
+        """
+        with self._conn:
+            self._conn.execute(
+                "DELETE FROM chunk_vectors WHERE chunk_id IN (SELECT id FROM chunks WHERE node_id = ?)",
+                (node_id,),
+            )
+            self._conn.execute("DELETE FROM chunks WHERE node_id = ?", (node_id,))
+            self._conn.execute("DELETE FROM memory_raw WHERE node_id = ?", (node_id,))
+            self._conn.execute("DELETE FROM edges WHERE src = ? OR dst = ?", (node_id, node_id))
+            cur = self._conn.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
+            return cur.rowcount
+
     # ---- chunks + vectors -----------------------------------------------
 
     def add_chunk(self, node_id: str, seq: int, content: str, embedding: list[float]) -> str:

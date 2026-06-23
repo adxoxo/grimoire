@@ -57,3 +57,29 @@ class GroqProvider(Provider):
         except httpx.HTTPError as exc:
             raise GroqError(f"groq error: {exc}") from exc
         return resp.json()["choices"][0]["message"]["content"]
+
+    def chat(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        tool_choice: str = "auto",
+    ) -> dict:
+        """Raw chat-completion turn returning the assistant message (with any tool_calls).
+
+        Used by the in-tab planner agent for OpenAI-style tool calling. The caller owns
+        the execute-and-loop; this is one round trip.
+        """
+        body: dict[str, object] = {"model": self._model, "messages": messages}
+        if tools:
+            body["tools"] = tools
+            body["tool_choice"] = tool_choice
+        try:
+            resp = self._client.post("/chat/completions", json=body)
+            resp.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise GroqError(f"groq timeout: {exc}") from exc
+        except httpx.HTTPStatusError as exc:
+            raise GroqError(f"groq http {exc.response.status_code}") from exc
+        except httpx.HTTPError as exc:
+            raise GroqError(f"groq error: {exc}") from exc
+        return resp.json()["choices"][0]["message"]

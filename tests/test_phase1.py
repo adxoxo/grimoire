@@ -172,3 +172,32 @@ def test_chunk_text():
     # allow a small margin for the overlap carry-over
     for chunk in chunks:
         assert len(chunk) <= CHUNK_CHARS + 300, f"chunk too long: {len(chunk)}"
+
+
+# ---------------------------------------------------------------------------
+# 6. delete_node (cascade)
+# ---------------------------------------------------------------------------
+
+def test_delete_node_cascades(tmp_path: Path):
+    repo = Repository(tmp_path / "g.db")
+    try:
+        pid = repo.upsert_project("Proj")
+        mem = repo.add_node("memory", "a chronicle", status="unreviewed")
+        repo.link_nodes(mem, pid, "belongs_to")
+        repo.add_chunk(mem, 0, "body", [0.0] * repo.embed_dim)
+
+        before = repo.counts()
+        assert before["nodes"] >= 2 and before["chunks"] == 1 and before["edges"] == 1
+
+        assert repo.delete_node(mem) == 1
+        assert repo.get_node(mem) is None
+
+        after = repo.counts()
+        assert after["chunks"] == 0          # chunks gone
+        assert after["chunk_vectors"] == 0   # vectors gone
+        assert after["edges"] == 0           # the belongs_to edge gone
+        assert repo.get_project("Proj") is not None  # the project survives
+
+        assert repo.delete_node(mem) == 0    # idempotent: already gone
+    finally:
+        repo.close()

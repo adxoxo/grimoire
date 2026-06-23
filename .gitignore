@@ -20,3 +20,6 @@ backups/
 node_modules/
 frontend/dist/
 frontend/playwright-report/
+
+# Windows "mark of the web" sidecar files
+*:Zone.Identifier

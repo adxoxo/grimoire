@@ -69,6 +69,12 @@ export default function Home() {
     refreshGraph()
   }
 
+  async function deleteNode(node: GraphNode) {
+    await api.deleteNode(node.id)
+    setSelected(null)
+    refreshGraph()
+  }
+
   return (
     <main className="relative w-full h-screen bg-bg-page overflow-hidden">
       {/* Search overlay + filter */}
@@ -137,6 +143,7 @@ export default function Home() {
           connections={connections}
           edges={selectedEdges}
           onPrune={prune}
+          onDelete={deleteNode}
           onClose={() => setSelected(null)}
         />
       )}
