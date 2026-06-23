@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, planner, type LinkedNode, type Project, type Task } from '../api'
 import { RUNE, QUADRANT, type NodeType } from '../theme'
+import { useLiveRefresh } from '../useLive'
 
 function humanize(key: string): string {
   return key.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
@@ -39,6 +40,15 @@ export default function ProjectHub() {
       planner.projectTasks(p.id).then((r) => setTasks(r.tasks)).catch(() => {})
     }).catch((e) => setError(String(e)))
   }, [name])
+
+  // Live refresh: re-pull the hub + its tasks without flashing the loading state.
+  const refresh = useCallback(() => {
+    api.project(name).then((p) => {
+      setProject(p)
+      planner.projectTasks(p.id).then((r) => setTasks(r.tasks)).catch(() => {})
+    }).catch(() => {})
+  }, [name])
+  useLiveRefresh(refresh)
 
   function refreshTasks() {
     if (project) planner.projectTasks(project.id).then((r) => setTasks(r.tasks)).catch(() => {})
