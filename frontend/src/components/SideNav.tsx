@@ -33,8 +33,38 @@ export default function SideNav() {
         <p className="font-label-md text-label-md text-text-tertiary mt-1 uppercase tracking-widest">Level IV Seeker</p>
       </div>
 
+      {/* Planner: the daily action surfaces */}
+      <div className="w-full mb-4">
+        <ul className="space-y-2">
+          {[
+            { to: '/today', label: 'Today', icon: 'wb_sunny', color: '#d4a93f' },
+            { to: '/flow', label: 'Flow', icon: 'view_timeline', color: '#9d6bd9' },
+          ].map((item) => {
+            const isActive = loc.pathname === item.to
+            return (
+              <li key={item.to}>
+                <Link
+                  to={item.to}
+                  className={[
+                    'flex items-center gap-4 py-3 pl-4 transition-all duration-200 hover:translate-x-1 group',
+                    isActive
+                      ? 'text-primary font-bold border-l-4 border-primary bg-surface-container-high'
+                      : 'text-text-muted hover:text-on-surface border-l-4 border-transparent hover:bg-surface-container',
+                  ].join(' ')}
+                >
+                  <span className="material-symbols-outlined opacity-80 group-hover:opacity-100 transition-opacity" style={{ color: item.color }}>{item.icon}</span>
+                  <span className="font-headline-sm text-headline-sm">{item.label}</span>
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+        <div className="border-t border-border-subtle mt-4 mx-4" />
+      </div>
+
       {/* Type tabs */}
       <div className="flex-1 overflow-y-auto w-full">
+        <p className="font-label-md text-label-md text-text-tertiary uppercase tracking-widest pl-4 mb-2">The grimoire</p>
         <ul className="space-y-2">
           {ITEMS.map((item) => {
             const isActive = (item.type ?? null) === (activeType === '__none__' ? null : activeType)
