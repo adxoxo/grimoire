@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, type GraphEdge, type ReviewItem } from '../api'
 import { RUNE } from '../theme'
 import { useAppState } from '../state'
+import { useLiveRefresh } from '../useLive'
 
 export default function Sanctum() {
   const { refreshGraph } = useAppState()
@@ -20,6 +21,7 @@ export default function Sanctum() {
       .catch((e) => setError(String(e)))
   }
   useEffect(load, [])
+  useLiveRefresh(load, { enabled: busy === null })
 
   // each item's outgoing belongs_to links (its "approved links")
   const linksByNode = useMemo(() => {
