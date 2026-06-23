@@ -425,5 +425,51 @@ def kb_recompute_urgency() -> dict:
             return {"recomputed": _daily_sweep(repo)}
 
 
+# ---------------------------------------------------------------------------
+# Remote hosting: serve the same tools over HTTP so non-local agents (Gemini CLI,
+# Codex, another Claude) can connect by URL. Local Claude Desktop keeps using stdio.
+# ---------------------------------------------------------------------------
+
+
+class _BearerAuthASGI:
+    """Require `Authorization: Bearer <token>` on HTTP requests when a token is set.
+
+    A pure-ASGI guard (not BaseHTTPMiddleware) so it never buffers the streaming MCP
+    responses. Lifespan and other non-HTTP scopes pass straight through to the app.
+    """
+
+    def __init__(self, app, token: str) -> None:
+        self.app = app
+        self.token = token
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            headers = dict(scope.get("headers") or [])
+            if headers.get(b"authorization", b"").decode() != f"Bearer {self.token}":
+                await send({"type": "http.response.start", "status": 401,
+                            "headers": [(b"content-type", b"application/json")]})
+                await send({"type": "http.response.body", "body": b'{"error":"unauthorized"}'})
+                return
+        await self.app(scope, receive, send)
+
+
+def build_http_app():
+    """The MCP server as a streamable-HTTP ASGI app, optionally behind a bearer guard."""
+    app = mcp.http_app(path=settings.mcp_http_path)
+    if settings.mcp_token:
+        return _BearerAuthASGI(app, settings.mcp_token)
+    return app
+
+
 if __name__ == "__main__":
-    mcp.run()
+    if settings.mcp_transport == "http":
+        import uvicorn
+
+        if not settings.mcp_token:
+            sys.stderr.write(
+                "[gateway] WARNING: GRIMOIRE_MCP_TRANSPORT=http with no GRIMOIRE_MCP_TOKEN; "
+                "the endpoint is unauthenticated. Set a token before exposing it.\n"
+            )
+        uvicorn.run(build_http_app(), host=settings.mcp_http_host, port=settings.mcp_http_port)
+    else:
+        mcp.run()

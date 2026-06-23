@@ -31,7 +31,7 @@ build-backend = "setuptools.build_meta"
 include = ["grimoire*"]
 
 [tool.setuptools.package-data]
-grimoire = ["store/*.sql"]
+grimoire = ["store/*.sql", "planner/*.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
