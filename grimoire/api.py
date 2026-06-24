@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Iterator, Literal, Union
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -226,6 +226,36 @@ def scribe(payload: ScribeMessage) -> dict:
             return scribe_from_text(svc, payload.message)
         except Exception as exc:  # noqa: BLE001 - needs the LLM; surfaced as 503
             raise HTTPException(status_code=503, detail=f"scribe needs the LLM: {exc}") from exc
+
+
+@app.post("/api/ingest")
+def ingest(files: list[UploadFile] = File(...), project: str | None = Form(None)) -> dict:
+    """Ingest uploaded documents (PDF, ebook, HTML, markdown, text) as tomes: convert to
+    markdown, chunk, embed, and link to a quest line. Books/PDFs become searchable."""
+    import os
+    import tempfile
+
+    target = (project or "Library").strip() or "Library"
+    results: list[dict] = []
+    with _repo() as repo:
+        svc = KnowledgeService(repo, _provider)
+        for f in files:
+            suffix = os.path.splitext(f.filename or "")[1] or ".txt"
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                tmp.write(f.file.read())
+                path = tmp.name
+            try:
+                title = os.path.splitext(os.path.basename(f.filename or "document"))[0]
+                res = svc.ingest_document(path, project=target, title=title)
+                results.append({**res, "filename": f.filename})
+            except Exception as exc:  # noqa: BLE001 - report per-file, keep going
+                results.append({"filename": f.filename, "error": str(exc)})
+            finally:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+    return {"ingested": results, "project": target}
 
 
 @app.post("/api/nodes")

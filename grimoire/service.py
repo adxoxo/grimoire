@@ -84,7 +84,8 @@ def _to_markdown(source: str) -> tuple[str, str]:
     path = Path(source)
     title = path.stem
     suffix = path.suffix.lower()
-    if suffix == ".pdf":
+    # PyMuPDF (fitz) opens PDFs and common ebook formats; pymupdf4llm renders them to markdown.
+    if suffix in (".pdf", ".epub", ".xps", ".fb2", ".mobi", ".cbz"):
         import pymupdf4llm
 
         return title, pymupdf4llm.to_markdown(str(path))
