@@ -47,3 +47,28 @@ def test_scribe_tolerates_code_fences_and_defaults_project(tmp_path: Path):
     out = scribe_from_text(svc, "a thought")
     assert out["type"] == "memory" and out["project"] == "Inbox"  # default catch-all
     assert repo.get_project("Inbox") is not None
+
+
+def test_ingest_endpoint_creates_tome(tmp_path: Path, monkeypatch):
+    """Upload a small markdown file and confirm it lands as a document linked to a project."""
+    import grimoire.api as apimod
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr(apimod.settings, "db_path", tmp_path / "g.db")
+    monkeypatch.setattr(apimod, "_provider", get_provider("fake"))  # offline, deterministic embeddings
+    client = TestClient(apimod.app)
+
+    body = b"# Widget notes\n\n" + b"Widgets are small. " * 50
+    res = client.post(
+        "/api/ingest",
+        files=[("files", ("widgets.md", body, "text/markdown"))],
+        data={"project": "Docs"},
+    )
+    assert res.status_code == 200, res.text
+    out = res.json()
+    assert out["project"] == "Docs"
+    assert out["ingested"][0]["chunks"] >= 1 and "error" not in out["ingested"][0]
+
+    with apimod._repo() as repo:
+        proj = repo.get_project("Docs")
+        assert proj is not None and any(l["type"] == "document" for l in proj["linked"])
