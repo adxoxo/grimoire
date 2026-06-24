@@ -27,7 +27,7 @@ from grimoire.distill import capture_session
 from grimoire.planner.web import router as planner_router
 from grimoire.providers import get_provider
 from grimoire.reembed import reembed_all
-from grimoire.scribe import scribe_from_text
+from grimoire.scribe import scribe_from_text, suggest_project_for_document
 from grimoire.service import KnowledgeService
 from grimoire.store import Repository
 
@@ -235,7 +235,7 @@ def ingest(files: list[UploadFile] = File(...), project: str | None = Form(None)
     import os
     import tempfile
 
-    target = (project or "Library").strip() or "Library"
+    typed = (project or "").strip()
     results: list[dict] = []
     with _repo() as repo:
         svc = KnowledgeService(repo, _provider)
@@ -246,8 +246,10 @@ def ingest(files: list[UploadFile] = File(...), project: str | None = Form(None)
                 path = tmp.name
             try:
                 title = os.path.splitext(os.path.basename(f.filename or "document"))[0]
-                res = svc.ingest_document(path, project=target, title=title)
-                results.append({**res, "filename": f.filename})
+                # Route: what you typed wins; else the closest quest line by title; else Library.
+                dest = typed or suggest_project_for_document(svc, title) or "Library"
+                res = svc.ingest_document(path, project=dest, title=title)
+                results.append({**res, "filename": f.filename, "project": dest})
             except Exception as exc:  # noqa: BLE001 - report per-file, keep going
                 results.append({"filename": f.filename, "error": str(exc)})
             finally:
@@ -255,7 +257,7 @@ def ingest(files: list[UploadFile] = File(...), project: str | None = Form(None)
                     os.unlink(path)
                 except OSError:
                     pass
-    return {"ingested": results, "project": target}
+    return {"ingested": results, "project": typed or None}
 
 
 @app.post("/api/nodes")

@@ -49,6 +49,24 @@ def test_scribe_tolerates_code_fences_and_defaults_project(tmp_path: Path):
     assert repo.get_project("Inbox") is not None
 
 
+def test_routes_to_most_similar_quest_line(tmp_path: Path):
+    """A note/doc should auto-route to the quest line whose content is most similar,
+    not a flat default. (FakeProvider embeds deterministically: identical text -> distance 0.)"""
+    from grimoire.scribe import rank_projects, suggest_project_for_document
+
+    svc, repo = _svc(tmp_path, "{}")
+    repo.upsert_project("Firmware")
+    repo.write_memory(project="Firmware", summary="STM32 i2c register configuration", title="i2c",
+                      summary_embedding=svc.provider.embed("STM32 i2c register configuration"))
+    repo.upsert_project("Cooking")
+    repo.write_memory(project="Cooking", summary="how to bake sourdough bread", title="bread",
+                      summary_embedding=svc.provider.embed("how to bake sourdough bread"))
+
+    ranked = rank_projects(svc, "STM32 i2c register configuration", k=2)
+    assert ranked and ranked[0]["title"] == "Firmware"
+    assert suggest_project_for_document(svc, "STM32 i2c register configuration") == "Firmware"
+
+
 def test_ingest_endpoint_creates_tome(tmp_path: Path, monkeypatch):
     """Upload a small markdown file and confirm it lands as a document linked to a project."""
     import grimoire.api as apimod

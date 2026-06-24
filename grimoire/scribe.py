@@ -21,13 +21,41 @@ node, returned as a single JSON object. Fields:
 - "title": a short title, <= 80 chars, no quotes.
 - "content": the note itself, lightly cleaned up and self-contained. For a project this \
 is its context summary.
-- "project": the quest line this belongs to. Pick the closest match from the existing \
-projects when one fits; otherwise propose a short new project name. Omit only when type is "project".
-Existing projects: {projects}
+- "project": the quest line this belongs to. STRONGLY prefer the most related existing \
+quest line below; only propose a short new project name when none of them are a genuine \
+home for this note. Omit only when type is "project".
+By semantic similarity to your knowledge base, the most related existing quest lines are, \
+best first: {related}
+All existing quest lines: {projects}
 Return ONLY the JSON object, nothing else."""
 
 NODE_TYPES = ("memory", "entity", "document", "project")
 DEFAULT_PROJECT = "Inbox"
+# Cosine-distance ceiling for auto-routing a document to an existing quest line. Below
+# this it is "related enough"; above it we fall back rather than misfile.
+ROUTE_MAX_DISTANCE = 0.6
+
+
+def rank_projects(svc: KnowledgeService, text: str, k: int = 5) -> list[dict]:
+    """Existing quest lines ranked by similarity to `text` (best first). Empty if the
+    embedder is unreachable or nothing is embedded yet."""
+    try:
+        emb = svc.provider.embed_query(text)
+        return svc.repo.rank_projects_by_similarity(emb, k=k)
+    except Exception:  # noqa: BLE001 - routing is a nicety; never block a save on it
+        return []
+
+
+def related_project_titles(svc: KnowledgeService, text: str, k: int = 5) -> list[str]:
+    return [r["title"] for r in rank_projects(svc, text, k=k)]
+
+
+def suggest_project_for_document(svc: KnowledgeService, routing_text: str) -> str | None:
+    """The best-matching quest line for an upload, or None if nothing is close enough."""
+    ranked = rank_projects(svc, routing_text, k=1)
+    if ranked and ranked[0]["distance"] <= ROUTE_MAX_DISTANCE:
+        return ranked[0]["title"]
+    return None
 
 
 def _parse_json(raw: str) -> dict:
@@ -53,7 +81,11 @@ def _embed(svc: KnowledgeService, text: str) -> list[float] | None:
 def scribe_from_text(svc: KnowledgeService, message: str) -> dict:
     """Classify a note and create the corresponding node. Returns the created node."""
     projects = [n["title"] for n in svc.repo.list_nodes(type="project")]
-    system = SCRIBE_SYSTEM.format(projects=", ".join(projects) if projects else "(none yet)")
+    related = related_project_titles(svc, message, k=5)
+    system = SCRIBE_SYSTEM.format(
+        related=", ".join(related) if related else "(none ranked yet)",
+        projects=", ".join(projects) if projects else "(none yet)",
+    )
     data = _parse_json(svc.provider.complete(message, system=system, json_mode=True))
 
     ntype = data.get("type") if data.get("type") in NODE_TYPES else "memory"
