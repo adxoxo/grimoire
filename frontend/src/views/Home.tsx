@@ -4,6 +4,7 @@ import { api, type Graph, type GraphNode } from '../api'
 import { RUNE, type NodeType } from '../theme'
 import Constellation from '../components/Constellation'
 import NodeDetailPanel from '../components/NodeDetailPanel'
+import KnowledgeScribe from '../components/KnowledgeScribe'
 import { useAppState } from '../state'
 import { useLiveRefresh } from '../useLive'
 
@@ -172,6 +173,8 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <KnowledgeScribe onScribed={refreshGraph} />
     </main>
   )
 }

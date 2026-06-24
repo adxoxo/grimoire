@@ -126,6 +126,8 @@ export const api = {
       `/api/search?q=${encodeURIComponent(q)}${project ? `&project=${encodeURIComponent(project)}` : ''}`,
     ),
   createNode: (node: NewNode) => post<{ id: string; type: string; title: string }>('/api/nodes', node),
+  scribe: (message: string) =>
+    post<{ id: string; type: NodeType; title: string; project?: string }>('/api/scribe', { message }),
   deleteNode: (id: string) => del<{ deleted: number; node_id: string }>(`/api/nodes/${encodeURIComponent(id)}`),
   deleteEdge: (src: string, dst: string, rel: string) =>
     del<{ deleted: number }>(
