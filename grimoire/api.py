@@ -27,6 +27,7 @@ from grimoire.distill import capture_session
 from grimoire.planner.web import router as planner_router
 from grimoire.providers import get_provider
 from grimoire.reembed import reembed_all
+from grimoire.scribe import scribe_from_text
 from grimoire.service import KnowledgeService
 from grimoire.store import Repository
 
@@ -209,6 +210,22 @@ class NewNode(BaseModel):
     meta: dict | None = None
     context: str | None = None  # project context_summary, or a node's body
     project: str | None = None  # for entity/document: link belongs_to this quest line
+
+
+class ScribeMessage(BaseModel):
+    message: str
+
+
+@app.post("/api/scribe")
+def scribe(payload: ScribeMessage) -> dict:
+    """Quick-capture: an LLM turns a free-form sentence into one node (classified,
+    titled, and filed under a quest line), created through the repository."""
+    with _repo() as repo:
+        svc = KnowledgeService(repo, _provider)
+        try:
+            return scribe_from_text(svc, payload.message)
+        except Exception as exc:  # noqa: BLE001 - needs the LLM; surfaced as 503
+            raise HTTPException(status_code=503, detail=f"scribe needs the LLM: {exc}") from exc
 
 
 @app.post("/api/nodes")
