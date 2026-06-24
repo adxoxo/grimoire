@@ -135,8 +135,8 @@ export const api = {
     const res = await fetch('/api/ingest', { method: 'POST', body: fd })
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
     return res.json() as Promise<{
-      project: string
-      ingested: { filename: string; title?: string; node_id?: string; chunks?: number; error?: string }[]
+      project: string | null
+      ingested: { filename: string; title?: string; node_id?: string; chunks?: number; project?: string; error?: string }[]
     }>
   },
   deleteNode: (id: string) => del<{ deleted: number; node_id: string }>(`/api/nodes/${encodeURIComponent(id)}`),

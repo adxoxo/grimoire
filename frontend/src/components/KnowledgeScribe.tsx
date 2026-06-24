@@ -44,9 +44,11 @@ export default function KnowledgeScribe({ onScribed }: { onScribed: () => void }
       const ok = r.ingested.filter((x) => !x.error)
       const failed = r.ingested.filter((x) => x.error)
       if (ok.length) {
+        // routing is per-file now; show where a single file landed, or the count for many
+        const projects = [...new Set(ok.map((x) => x.project).filter(Boolean))]
         setLast({ id: '', type: 'document',
           title: ok.length === 1 ? (ok[0].title || ok[0].filename) : `${ok.length} documents`,
-          project: r.project })
+          project: ok.length === 1 ? ok[0].project : projects.join(', ') })
       }
       if (failed.length) {
         setLast({ error: `${failed.length} failed: ${failed.map((f) => f.filename).join(', ')}` })
