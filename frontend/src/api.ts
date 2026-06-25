@@ -126,6 +126,19 @@ export const api = {
       `/api/search?q=${encodeURIComponent(q)}${project ? `&project=${encodeURIComponent(project)}` : ''}`,
     ),
   createNode: (node: NewNode) => post<{ id: string; type: string; title: string }>('/api/nodes', node),
+  scribe: (message: string) =>
+    post<{ id: string; type: NodeType; title: string; project?: string }>('/api/scribe', { message }),
+  ingest: async (files: File[], project?: string) => {
+    const fd = new FormData()
+    for (const f of files) fd.append('files', f)
+    if (project) fd.append('project', project)
+    const res = await fetch('/api/ingest', { method: 'POST', body: fd })
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+    return res.json() as Promise<{
+      project: string | null
+      ingested: { filename: string; title?: string; node_id?: string; chunks?: number; project?: string; error?: string }[]
+    }>
+  },
   deleteNode: (id: string) => del<{ deleted: number; node_id: string }>(`/api/nodes/${encodeURIComponent(id)}`),
   deleteEdge: (src: string, dst: string, rel: string) =>
     del<{ deleted: number }>(

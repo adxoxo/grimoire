@@ -301,6 +301,29 @@ class Repository:
             rows = self._conn.execute(f"{base} ORDER BY distance", (qv,)).fetchall()
         return [dict(r) for r in rows]
 
+    def rank_projects_by_similarity(
+        self, query_embedding: list[float], k: int = 5
+    ) -> list[dict[str, Any]]:
+        """Rank quest lines (projects) by how closely their linked content matches a
+        query vector. Each project is scored by its single nearest chunk (min cosine
+        distance over everything that belongs_to it). Used to auto-route a new note or
+        document to the quest line it is most related to, instead of a flat catch-all.
+        """
+        if len(query_embedding) != self.embed_dim:
+            raise ValueError(f"query has {len(query_embedding)} dims, expected {self.embed_dim}")
+        qv = serialize_float32(query_embedding)
+        rows = self._conn.execute(
+            "SELECT p.id, p.title, MIN(vec_distance_cosine(cv.embedding, ?)) AS distance"
+            " FROM chunk_vectors cv"
+            " JOIN chunks c ON c.id = cv.chunk_id"
+            " JOIN nodes n ON n.id = c.node_id"
+            " JOIN edges e ON e.src = n.id AND e.rel = 'belongs_to'"
+            " JOIN nodes p ON p.id = e.dst AND p.type = 'project'"
+            " GROUP BY p.id ORDER BY distance LIMIT ?",
+            (qv, k),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     # ---- projects -------------------------------------------------------
 
     def upsert_project(

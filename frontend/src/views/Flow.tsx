@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { planner, type Anchor, type Block, type FlowData, type PlanResult } from '../api'
 import { localDate } from '../theme'
+import { useLiveRefresh } from '../useLive'
 import PlannerChat from '../components/planner/PlannerChat'
 import InlineEdit from '../components/planner/InlineEdit'
 
@@ -29,29 +30,31 @@ const BLOCK_STYLE: Record<Block['type'], { color: string; label: string }> = {
   break: { color: '#9d6bd9', label: 'Break' },
 }
 
-const PAD_MIN = 20 // breathing room above the first block and below the last
-
 // ---- timeline (draggable / renamable / deletable blocks) ---------------------
 
-function Timeline({ blocks, overlay, onMove, onRename, onDelete }: {
+function Timeline({ blocks, windowStart, windowEnd, overlay, onMove, onRename, onDelete, onInteractingChange }: {
   blocks: Block[]
+  windowStart: Date
+  windowEnd: Date
   overlay: FlowData['overlay']
   onMove: (index: number, newStartISO: string) => void
   onRename: (index: number, title: string) => void
   onDelete: (index: number) => void
+  onInteractingChange?: (interacting: boolean) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<{ i: number; grab: number; topPx: number } | null>(null)
   const [editing, setEditing] = useState<number | null>(null)
 
-  // The visible span is exactly the scheduled portion (plus a little padding), so a
-  // day generated from 5:40pm starts at 5:40pm with no empty morning above it.
-  const starts = blocks.map((b) => new Date(b.start).getTime())
-  const ends = blocks.map((b) => new Date(b.end).getTime())
+  // Tell the parent to pause live-refresh while a drag or rename is in flight.
+  useEffect(() => { onInteractingChange?.(drag !== null || editing !== null) }, [drag, editing, onInteractingChange])
+
+  // The frame is FIXED to the chosen wake -> sleep window. Generating later in the day
+  // fills only from "now" onward, but the calendar stays the same shape: the elapsed
+  // morning sits empty above the current-time line.
   const now = new Date()
-  let lo = Math.min(...starts) - PAD_MIN * 60000
-  let hi = Math.max(...ends) + PAD_MIN * 60000
-  if (now.getTime() >= lo && now.getTime() <= Math.max(...ends)) lo = Math.min(lo, now.getTime()) // keep marker in view
+  const lo = windowStart.getTime()
+  const hi = windowEnd.getTime()
   const totalMin = Math.max(60, (hi - lo) / 60000)
   const height = totalMin * PX_PER_MIN
   const topPxOf = (ms: number) => ((ms - lo) / 60000) * PX_PER_MIN
@@ -249,19 +252,24 @@ export default function Flow() {
   const [wake, setWake] = useState('08:00')
   const [sleep, setSleep] = useState('23:00')
   const [busy, setBusy] = useState(false)
+  const [interacting, setInteracting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const seeded = useRef(false) // seed the wake/sleep inputs from the plan only once
 
   const load = useCallback(() => {
     planner.flow(date).then((f) => {
       setFlow(f)
       setBlocks(f.plan?.blocks ?? [])
-      if (f.plan) {
+      if (f.plan && !seeded.current) {
         setWake(hhmmFromIso(f.plan.wake_time, '08:00'))
         setSleep(hhmmFromIso(f.plan.sleep_target, '23:00'))
+        seeded.current = true
       }
     }).catch((e) => setError(String(e)))
   }, [date])
   useEffect(load, [load])
+  // Live updates; pause while busy generating or mid drag/rename so nothing is clobbered.
+  useLiveRefresh(load, { enabled: !interacting && !busy, intervalMs: 15000 })
 
   // Persist a block edit (drag / rename / delete) and keep the view in sync.
   const saveBlocks = useCallback((next: Block[]) => {
@@ -289,13 +297,18 @@ export default function Flow() {
     setBlocks((prev) => { const next = prev.filter((_, j) => j !== i); saveBlocks(next); return next })
   }, [saveBlocks])
 
-  const windowLabel = useMemo(() => {
-    const w = combine(date, wake)
-    let s = combine(date, sleep)
-    if (s <= w) s = new Date(s.getTime() + 86400000)
-    const min = Math.round((s.getTime() - w.getTime()) / 60000)
-    return `${Math.floor(min / 60)}h ${min % 60}m`
+  // The fixed calendar frame: wake -> sleep (sleep rolls to next day if it's "earlier").
+  const windowDates = useMemo(() => {
+    const start = combine(date, wake)
+    let end = combine(date, sleep)
+    if (end <= start) end = new Date(end.getTime() + 86400000)
+    return { start, end }
   }, [date, wake, sleep])
+
+  const windowLabel = useMemo(() => {
+    const min = Math.round((windowDates.end.getTime() - windowDates.start.getTime()) / 60000)
+    return `${Math.floor(min / 60)}h ${min % 60}m`
+  }, [windowDates])
 
   async function generate() {
     setBusy(true); setError(null)
@@ -378,7 +391,9 @@ export default function Flow() {
             </h2>
             {blocks.length > 0 ? (
               <>
-                <Timeline blocks={blocks} overlay={overlay} onMove={moveBlock} onRename={renameBlock} onDelete={deleteBlock} />
+                <Timeline blocks={blocks} windowStart={windowDates.start} windowEnd={windowDates.end}
+                  overlay={overlay} onMove={moveBlock} onRename={renameBlock} onDelete={deleteBlock}
+                  onInteractingChange={setInteracting} />
                 <p className="font-body-sm text-body-sm text-text-tertiary mt-3 ml-14">drag a block to reschedule it · double-click to rename · hover for delete</p>
               </>
             ) : (
