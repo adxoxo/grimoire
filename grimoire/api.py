@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Iterator, Literal, Union
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,15 +27,20 @@ from grimoire.distill import capture_session
 from grimoire.planner.web import router as planner_router
 from grimoire.providers import get_provider
 from grimoire.reembed import reembed_all
+from grimoire.scribe import scribe_from_text, suggest_project_for_document
 from grimoire.service import KnowledgeService
 from grimoire.store import Repository
 
 app = FastAPI(title="The Grimoire", version="0.1.0")
 
 # The dashboard runs on the Vite dev server during development.
+# localhost dev origins, plus any public dashboard origin(s) from config.
+_cors_origins = ["http://localhost:5173", "http://127.0.0.1:5173"] + [
+    o.strip() for o in settings.public_origins.split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_cors_origins,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
@@ -205,6 +210,54 @@ class NewNode(BaseModel):
     meta: dict | None = None
     context: str | None = None  # project context_summary, or a node's body
     project: str | None = None  # for entity/document: link belongs_to this quest line
+
+
+class ScribeMessage(BaseModel):
+    message: str
+
+
+@app.post("/api/scribe")
+def scribe(payload: ScribeMessage) -> dict:
+    """Quick-capture: an LLM turns a free-form sentence into one node (classified,
+    titled, and filed under a quest line), created through the repository."""
+    with _repo() as repo:
+        svc = KnowledgeService(repo, _provider)
+        try:
+            return scribe_from_text(svc, payload.message)
+        except Exception as exc:  # noqa: BLE001 - needs the LLM; surfaced as 503
+            raise HTTPException(status_code=503, detail=f"scribe needs the LLM: {exc}") from exc
+
+
+@app.post("/api/ingest")
+def ingest(files: list[UploadFile] = File(...), project: str | None = Form(None)) -> dict:
+    """Ingest uploaded documents (PDF, ebook, HTML, markdown, text) as tomes: convert to
+    markdown, chunk, embed, and link to a quest line. Books/PDFs become searchable."""
+    import os
+    import tempfile
+
+    typed = (project or "").strip()
+    results: list[dict] = []
+    with _repo() as repo:
+        svc = KnowledgeService(repo, _provider)
+        for f in files:
+            suffix = os.path.splitext(f.filename or "")[1] or ".txt"
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                tmp.write(f.file.read())
+                path = tmp.name
+            try:
+                title = os.path.splitext(os.path.basename(f.filename or "document"))[0]
+                # Route: what you typed wins; else the closest quest line by title; else Library.
+                dest = typed or suggest_project_for_document(svc, title) or "Library"
+                res = svc.ingest_document(path, project=dest, title=title)
+                results.append({**res, "filename": f.filename, "project": dest})
+            except Exception as exc:  # noqa: BLE001 - report per-file, keep going
+                results.append({"filename": f.filename, "error": str(exc)})
+            finally:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+    return {"ingested": results, "project": typed or None}
 
 
 @app.post("/api/nodes")

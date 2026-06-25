@@ -4,7 +4,9 @@ import { api, type Graph, type GraphNode } from '../api'
 import { RUNE, type NodeType } from '../theme'
 import Constellation from '../components/Constellation'
 import NodeDetailPanel from '../components/NodeDetailPanel'
+import KnowledgeScribe from '../components/KnowledgeScribe'
 import { useAppState } from '../state'
+import { useLiveRefresh } from '../useLive'
 
 const ALL_TYPES: NodeType[] = ['project', 'document', 'memory', 'entity']
 
@@ -22,6 +24,8 @@ export default function Home() {
   useEffect(() => {
     api.graph().then(setGraph).catch((e) => setError(String(e)))
   }, [graphVersion])
+  // Live updates of the constellation (new/removed nodes appear without a reload).
+  useLiveRefresh(() => api.graph().then(setGraph).catch(() => {}))
 
   const connections = useMemo(() => {
     if (!graph || !selected) return 0
@@ -169,6 +173,8 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <KnowledgeScribe onScribed={refreshGraph} />
     </main>
   )
 }

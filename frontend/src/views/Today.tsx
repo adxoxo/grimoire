@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, planner, type Habit, type Task, type AreaGroup, type TodayData } from '../api'
 import { QUADRANT, type Quadrant, localDate } from '../theme'
+import { useLiveRefresh } from '../useLive'
 import PlannerChat from '../components/planner/PlannerChat'
 import AddItemDialog from '../components/planner/AddItemDialog'
 import InlineEdit from '../components/planner/InlineEdit'
@@ -250,6 +251,8 @@ export default function Today() {
     planner.today(date).then(setData).catch((e) => setError(String(e)))
   }, [date])
   useEffect(load, [load])
+  // Live updates; pause while the add/edit dialog is open so it can't clobber input.
+  useLiveRefresh(load, { enabled: dialog === null })
 
   // Map project node ids -> titles so task chips can show a clickable quest-line tag.
   useEffect(() => {

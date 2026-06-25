@@ -10,6 +10,8 @@ dependencies = [
     # HTTP API serving the dashboard + n8n capture endpoints.
     "fastapi>=0.115",
     "uvicorn>=0.30",
+    # File uploads (dashboard document/PDF ingest).
+    "python-multipart>=0.0.9",
     # MCP gateway.
     "fastmcp>=2.0",
     # Document conversion (Phase 1): PDF and HTML to markdown. Never embed raw bytes.
@@ -31,7 +33,7 @@ build-backend = "setuptools.build_meta"
 include = ["grimoire*"]
 
 [tool.setuptools.package-data]
-grimoire = ["store/*.sql"]
+grimoire = ["store/*.sql", "planner/*.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

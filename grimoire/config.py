@@ -34,5 +34,20 @@ class Settings(BaseSettings):
     # Embedding dimensions. Must match the vec0 schema (chunk_vectors.embedding float[768]).
     embed_dim: int = 768
 
+    # --- Remote MCP hosting (optional) ---
+    # stdio (default) = local subprocess launched per-agent by the MCP client.
+    # http            = a long-running network daemon other agents reach by URL.
+    mcp_transport: str = "stdio"
+    mcp_http_host: str = "0.0.0.0"
+    mcp_http_port: int = 8730
+    mcp_http_path: str = "/mcp"
+    # Bearer token required on the HTTP MCP endpoint. Empty = no check (local only).
+    # Always set this when exposing the server beyond localhost.
+    mcp_token: str = ""
+
+    # Extra browser origins allowed to call the REST API (comma-separated),
+    # e.g. "https://grimoire.aquryu.space". localhost dev origins are always allowed.
+    public_origins: str = ""
+
 
 settings = Settings()
