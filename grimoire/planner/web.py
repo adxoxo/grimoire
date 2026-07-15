@@ -175,6 +175,16 @@ def toggle_habit(habit_id: str, date: str | None = None) -> dict:
         return out
 
 
+@router.get("/habits/{habit_id}/history")
+def habit_history(habit_id: str) -> dict:
+    """Completion dates + streak for one habit — the habit-detail calendar."""
+    with _repo() as repo:
+        out = habits_mod.habit_history(repo, habit_id)
+        if out is None:
+            raise HTTPException(404, "habit not found")
+        return out
+
+
 @router.delete("/habits/{habit_id}")
 def delete_habit(habit_id: str) -> dict:
     with _repo() as repo:

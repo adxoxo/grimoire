@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Green-anchored dark arcane. Brand tokens (design-en) adapted for a dark surface:
+   leaf green #4f7a52 brightens to #6fbf73 for glows/accents on near-black. */
+:root {
+  color-scheme: dark;
+  --page: #07100b;
+  --panel: #0c1710;
+  --raised: #12211a;
+  --border: #1e3327;
+  --border-subtle: #14201a;
+  --quest: #6fbf73;
+  --tome: #4fb6c9;
+  --chronicle: #d9a24a;
+  --entity: #9d6bd9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--page);
+  color: #e4efe7;
+  font-family: 'Work Sans', sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--quest);
+  color: #06210e;
+}
+
+/* Keyboard focus: a clear green ring on interactive chrome (mouse focus stays quiet).
+   Inputs keep their own border-colour focus, so they are left out to avoid doubling. */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--quest);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* A faint arcane vignette so the near-black surface has depth without a "glow gradient"
+   AI-tell. Fixed, subtle, single hue tied to the brand green. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(111, 191, 115, 0.06), transparent 60%),
+    radial-gradient(90% 60% at 100% 110%, rgba(79, 182, 201, 0.05), transparent 55%);
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+}
+
+/* Material Symbols defaults */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+}
+
+/* The reusable panel: raised surface, hairline border, a whisper of top light.
+   (In the React app `grimoire-card` was referenced but never defined — a dead class.
+   Defined for real here.) */
+.grimoire-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgba(228, 239, 231, 0.04);
+}
+
+/* Slow rotation for the header sigil (respects reduced-motion below). */
+@keyframes sigil-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.sigil-spin {
+  animation: sigil-spin 36s linear infinite;
+}
+
+/* Node glows (steady) — atmosphere lives here, per the design system. Green-anchored. */
+.glow-quest { box-shadow: 0 0 15px 2px rgba(111, 191, 115, 0.55); }
+.glow-tome { box-shadow: 0 0 15px 2px rgba(79, 182, 201, 0.55); }
+.glow-chronicle { box-shadow: 0 0 15px 2px rgba(217, 162, 74, 0.55); }
+.glow-entity { box-shadow: 0 0 15px 2px rgba(157, 107, 217, 0.55); }
+
+/* Status-as-glow: unreviewed nodes pulse faintly; reviewed nodes glow steady. */
+@keyframes pulse-quest { 0%,100% { box-shadow: 0 0 8px rgba(111,191,115,0.25); } 50% { box-shadow: 0 0 22px rgba(111,191,115,0.7); } }
+@keyframes pulse-tome { 0%,100% { box-shadow: 0 0 8px rgba(79,182,201,0.25); } 50% { box-shadow: 0 0 22px rgba(79,182,201,0.7); } }
+@keyframes pulse-chronicle { 0%,100% { box-shadow: 0 0 8px rgba(217,162,74,0.25); } 50% { box-shadow: 0 0 22px rgba(217,162,74,0.7); } }
+@keyframes pulse-entity { 0%,100% { box-shadow: 0 0 8px rgba(157,107,217,0.25); } 50% { box-shadow: 0 0 22px rgba(157,107,217,0.7); } }
+.pulse-quest { animation: pulse-quest 3s ease-in-out infinite; }
+.pulse-tome { animation: pulse-tome 3s ease-in-out infinite; }
+.pulse-chronicle { animation: pulse-chronicle 3s ease-in-out infinite; }
+.pulse-entity { animation: pulse-entity 3s ease-in-out infinite; }
+
+/* SVG node glow pulse (for circles in the constellation). */
+@keyframes svg-pulse { 0%,100% { opacity: 0.45; } 50% { opacity: 1; } }
+.svg-pulse { animation: svg-pulse 3s ease-in-out infinite; }
+
+/* Tome reader: grimoire chrome on the panel, clean legible content inside.
+   Headers in Sora (display), body in Work Sans — matching the brand type system. */
+.tome-content { font-family: 'Work Sans', sans-serif; color: #e4efe7; line-height: 1.7; font-size: 16px; }
+.tome-content h1, .tome-content h2, .tome-content h3, .tome-content h4 { font-family: 'Sora', sans-serif; color: #a9e6b0; margin: 1.4em 0 0.5em; line-height: 1.25; font-weight: 700; }
+.tome-content h1 { font-size: 26px; } .tome-content h2 { font-size: 21px; } .tome-content h3 { font-size: 17px; }
+.tome-content p { margin: 0 0 1em; }
+.tome-content a { color: #4fb6c9; text-underline-offset: 3px; }
+.tome-content code { font-family: ui-monospace, monospace; background: #12211a; padding: 2px 5px; border-radius: 3px; font-size: 0.9em; color: #c4d3c7; }
+.tome-content pre { background: #07100b; border: 1px solid #1e3327; border-radius: 4px; padding: 12px; overflow-x: auto; }
+.tome-content pre code { background: none; padding: 0; }
+.tome-content ul, .tome-content ol { margin: 0 0 1em 1.4em; }
+.tome-content li { margin: 0.3em 0; }
+.tome-content blockquote { border-left: 3px solid #1e3327; padding-left: 1em; color: #8ca594; margin: 0 0 1em; }
+.tome-content table { border-collapse: collapse; margin: 0 0 1em; display: block; overflow-x: auto; }
+.tome-content th, .tome-content td { border: 1px solid #1e3327; padding: 6px 10px; text-align: left; }
+.tome-content hr { border: none; border-top: 1px solid #1e3327; margin: 1.5em 0; }
+
+/* Thin themed scrollbars so content panels stay scholarly. */
+* { scrollbar-width: thin; scrollbar-color: #1e3327 transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #1e3327; border-radius: 9999px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* Honour reduced-motion: kill the decorative loops, keep functional transitions short. */
+@media (prefers-reduced-motion: reduce) {
+  .sigil-spin,
+  .svg-pulse,
+  .pulse-quest, .pulse-tome, .pulse-chronicle, .pulse-entity,
+  .animate-pulse, .animate-ping, .animate-spin {
+    animation: none !important;
+  }
+  * { transition-duration: 0.01ms !important; }
+}
