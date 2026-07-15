@@ -1,8 +1,6 @@
 # Grimoire
 
 A local shared knowledge base served to multiple coding agents through one MCP gateway.
-The spec lives in [ARCHITECTURE.md](ARCHITECTURE.md), the build order in
-[BUILDPLAN.md](BUILDPLAN.md), and the operating rules in [CLAUDE.md](CLAUDE.md).
 
 ## Status
 
@@ -36,8 +34,7 @@ Uses the deterministic offline `FakeProvider`, so no Ollama or network is requir
 
 ## Dashboard
 
-The grimoire UI: a force-directed constellation home and project hub views, styled from
-[design/the_arcane_grimoire/DESIGN.md](design/the_arcane_grimoire/DESIGN.md). It reads
+The grimoire UI: a force-directed constellation home and project hub views. It reads
 real data from the store through the HTTP API.
 
 ```bash
