@@ -25,6 +25,7 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 
 from grimoire.config import settings
 from grimoire.providers import get_provider
+from grimoire.rerank import get_reranker
 from grimoire.service import KnowledgeService
 from grimoire.store import Repository
 
@@ -35,8 +36,9 @@ trace.set_tracer_provider(_tp)
 tracer = trace.get_tracer("grimoire.gateway")
 
 # Provider is reused across calls; the store connection is per-call (SQLite is happiest
-# with one connection per unit of work).
+# with one connection per unit of work). The re-ranker model loads lazily on first use.
 _provider = get_provider()
+_reranker = get_reranker(settings.rerank_enabled, settings.rerank_model)
 
 mcp = FastMCP("Grimoire")
 
@@ -45,7 +47,7 @@ mcp = FastMCP("Grimoire")
 def _service() -> Iterator[KnowledgeService]:
     repo = Repository(settings.db_path)
     try:
-        yield KnowledgeService(repo, _provider)
+        yield KnowledgeService(repo, _provider, _reranker)
     finally:
         repo.close()
 
@@ -57,7 +59,7 @@ def kb_retrieve(query: str, project: str | None = None, k: int = 10) -> list[dic
         span.set_attribute("grimoire.project", project or "")
         span.set_attribute("grimoire.k", k)
         with _service() as svc:
-            hits = svc.retrieve(query, project=project, k=k)
+            hits = svc.retrieve(query, project=project, k=k, rerank_candidates=settings.rerank_candidates)
         span.set_attribute("grimoire.candidate_chunks", len(hits))
         return [
             {

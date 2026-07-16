@@ -20,6 +20,9 @@ dependencies = [
     # Gateway tracing (Phase 2).
     "opentelemetry-api>=1.27",
     "opentelemetry-sdk>=1.27",
+    # Local cross-encoder re-ranker (ONNX Runtime, CPU-only, no torch/GPU). Second-stage
+    # retrieval precision on a modest VPS. Imported lazily so the app runs without it.
+    "fastembed>=0.4",
 ]
 
 [project.optional-dependencies]
