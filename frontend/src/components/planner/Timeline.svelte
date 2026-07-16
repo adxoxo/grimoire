@@ -7,10 +7,10 @@
   const PX_PER_MIN = 1.15
 
   const BLOCK_STYLE: Record<Block['type'], { color: string; label: string }> = {
-    anchor: { color: '#4fb6c9', label: 'Anchor' },
-    habit: { color: '#6fbf73', label: 'Ritual' },
-    task: { color: '#c4d3c7', label: 'Task' },
-    goal: { color: '#d9a24a', label: 'Apex goal' },
+    anchor: { color: '#5b8dd9', label: 'Anchor' },
+    habit: { color: '#d4a93f', label: 'Ritual' },
+    task: { color: '#cdc6b7', label: 'Task' },
+    goal: { color: '#d98b4a', label: 'Apex goal' },
     break: { color: '#9d6bd9', label: 'Break' },
   }
 
@@ -23,6 +23,7 @@
     onRename,
     onDelete,
     onInteractingChange,
+    onCreateAt,
   }: {
     blocks: Block[]
     windowStart: Date
@@ -32,11 +33,16 @@
     onRename: (index: number, title: string) => void
     onDelete: (index: number) => void
     onInteractingChange?: (interacting: boolean) => void
+    // Double-click an empty slot to create a task pinned to that time (Google-Calendar
+    // style). Passes the snapped start ISO; the parent opens the create modal.
+    onCreateAt?: (startISO: string) => void
   } = $props()
 
   let containerEl = $state<HTMLDivElement>()
   let drag = $state<{ i: number; topPx: number } | null>(null)
   let editing = $state<number | null>(null)
+  // Cursor position (px from top) over empty timeline, for the "add here" affordance.
+  let hoverPx = $state<number | null>(null)
 
   $effect(() => onInteractingChange?.(drag !== null || editing !== null))
 
@@ -86,9 +92,29 @@
     window.addEventListener('mousemove', move)
     window.addEventListener('mouseup', up)
   }
+
+  // --- create-at-slot (Google-Calendar-style) ---------------------------------
+  const SNAP_MIN = 15
+  const snappedMin = (px: number) => Math.max(0, Math.round(px / PX_PER_MIN / SNAP_MIN) * SNAP_MIN)
+
+  // Track the cursor over empty timeline to show the "double-click to add" ghost.
+  function onBackgroundMove(e: MouseEvent) {
+    if (drag !== null || editing !== null || (e.target as HTMLElement).closest('[data-block]')) {
+      hoverPx = null
+      return
+    }
+    if (containerEl) hoverPx = e.clientY - containerEl.getBoundingClientRect().top
+  }
+  // Double-click empty space -> create a task pinned to that (snapped) time.
+  function createAtCursor(e: MouseEvent) {
+    if (!onCreateAt || !containerEl || (e.target as HTMLElement).closest('[data-block]')) return
+    onCreateAt(new Date(lo + snappedMin(e.clientY - containerEl.getBoundingClientRect().top) * 60000).toISOString())
+  }
 </script>
 
-<div bind:this={containerEl} class="relative ml-14 select-none" style="height:{height}px">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div bind:this={containerEl} class="relative ml-14 select-none" style="height:{height}px"
+  onmousemove={onBackgroundMove} onmouseleave={() => (hoverPx = null)} ondblclick={createAtCursor}>
   <!-- hour gridlines -->
   {#each hours as h, i (i)}
     <div class="absolute left-0 right-0 flex items-center" style="top:{topPxOf(h.getTime())}px">
@@ -119,10 +145,11 @@
     {@const startLabel = clock(new Date(lo + (top / PX_PER_MIN) * 60000).toISOString())}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
+      data-block
       onmousedown={(e) => startDrag(e, i)}
       in:fade={{ duration: dur(180) }}
       class="absolute left-2 right-2 rounded-lg px-4 py-2 overflow-hidden group {apex ? 'border-2' : 'border'} {dragging ? 'cursor-grabbing z-30 shadow-2xl' : 'cursor-grab transition-all'} {b.locked ? 'opacity-80' : ''}"
-      style="top:{top}px; height:{h}px; border-color:{apex ? s.color : `${s.color}55`}; background:{apex ? `${s.color}1f` : 'rgba(18,33,26,0.92)'}; box-shadow:{dragging ? `0 8px 30px rgba(0,0,0,0.6), 0 0 0 1px ${s.color}` : apex ? `0 0 24px ${s.color}30` : 'inset 0 1px 0 rgba(255,255,255,0.05)'}"
+      style="top:{top}px; height:{h}px; border-color:{apex ? s.color : `${s.color}55`}; background:{apex ? `${s.color}1f` : 'rgba(22,20,43,0.92)'}; box-shadow:{dragging ? `0 8px 30px rgba(0,0,0,0.6), 0 0 0 1px ${s.color}` : apex ? `0 0 24px ${s.color}30` : 'inset 0 1px 0 rgba(255,255,255,0.05)'}"
     >
       <div class="absolute top-0 left-0 w-1 h-full" style="background:{s.color}"></div>
       <div class="flex items-center justify-between gap-2">
@@ -145,6 +172,18 @@
       </div>
     </div>
   {/each}
+
+  <!-- create-at-slot ghost: shows the snapped time on hover over empty timeline -->
+  {#if hoverPx !== null && onCreateAt}
+    {@const gm = snappedMin(hoverPx)}
+    <div class="absolute left-2 right-2 z-10 pointer-events-none flex items-center gap-2 rounded-lg border border-dashed border-rune-quest/50 bg-rune-quest/5 px-3"
+      style="top:{gm * PX_PER_MIN}px; height:{Math.max(30, 30 * PX_PER_MIN)}px">
+      <span class="material-symbols-outlined text-[15px] text-rune-quest">add</span>
+      <span class="font-label-md text-[10px] uppercase tracking-widest text-rune-quest">
+        double-click to add · {clock(new Date(lo + gm * 60000).toISOString())}
+      </span>
+    </div>
+  {/if}
 
   <!-- current-time marker -->
   {#if now.getTime() >= lo && now.getTime() <= hi}

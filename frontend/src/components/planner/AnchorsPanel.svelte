@@ -46,7 +46,7 @@
     {#if anchors.length === 0 && !open}<p class="font-body-sm text-body-sm text-text-tertiary">No anchors. Pin a call or window the day.</p>{/if}
     {#each anchors as a (a.id)}
       <div transition:slide={{ duration: dur(200) }} class="flex items-center gap-2 bg-surface-container-low/50 border border-border-subtle rounded px-2 py-1.5">
-        <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:{a.kind === 'hard' ? '#4fb6c9' : '#9d6bd9'}"></span>
+        <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:{a.kind === 'hard' ? '#5b8dd9' : '#9d6bd9'}"></span>
         <span class="font-body-sm text-body-sm text-on-surface flex-1 truncate">{a.title}</span>
         <span class="font-label-md text-[9px] text-text-tertiary">{a.kind === 'hard' && a.start ? clock(a.start) : `${a.window_start ?? ''}–${a.window_end ?? ''}`}</span>
         <button onclick={async () => { await planner.deleteAnchor(a.id); onChange() }} class="material-symbols-outlined text-[14px] text-text-tertiary hover:text-status-error" aria-label="Delete anchor">close</button>

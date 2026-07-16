@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fade, fly } from 'svelte/transition'
   import { quintOut } from 'svelte/easing'
-  import { api, planner, type LifeArea, type Goal } from '../../lib/api'
+  import { api, planner, type LifeArea, type Goal, type Task } from '../../lib/api'
   import { dur } from '../../lib/motion.svelte'
 
   type Kind = 'task' | 'habit' | 'goal'
@@ -9,25 +9,45 @@
   let {
     kind,
     defaultQuadrant,
+    scheduledStart,
     onClose,
     onCreated,
+    onSchedule,
   }: {
     kind: Kind
     defaultQuadrant?: { important: boolean; urgent: boolean }
+    // When set (task kind, from the Flow timeline), the dialog schedules the new task at
+    // this ISO time instead of just dropping it in the pool. `onSchedule` gets the result.
+    scheduledStart?: string
     onClose: () => void
     onCreated: () => void
+    onSchedule?: (info: { task: Task; startISO: string; durationMin: number }) => void
   } = $props()
 
   // Snapshot the drop-quadrant default once (the dialog is remounted per open, so this
   // plain read is the correct seed and keeps the toggles user-controlled afterwards).
   const seed = defaultQuadrant
 
+  // HH:MM from an ISO string, and the inverse (swap the time onto the scheduled date).
+  const hhmm = (iso: string) => {
+    const d = new Date(iso)
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+  function combineStart(iso: string, time: string): string {
+    const d = new Date(iso)
+    const [h, m] = time.split(':').map(Number)
+    d.setHours(h, m, 0, 0)
+    return d.toISOString()
+  }
+
   let title = $state('')
   let busy = $state(false)
   // task
   let important = $state(seed?.important ?? false)
   let urgent = $state(seed?.urgent ?? false)
-  let estimate = $state('')
+  // In scheduled mode the estimate doubles as the block duration; seed a sensible default.
+  let estimate = $state(scheduledStart ? '60' : '')
+  let startTime = $state(scheduledStart ? hhmm(scheduledStart) : '')
   let goalId = $state('')
   let goals = $state<Goal[]>([])
   // habit
@@ -57,11 +77,17 @@
     busy = true
     try {
       if (kind === 'task') {
-        await planner.createTask({
+        const durationMin = estimate ? Number(estimate) : undefined
+        const task = await planner.createTask({
           title: title.trim(), important, urgent_manual: urgent ? true : undefined,
-          estimate_minutes: estimate ? Number(estimate) : undefined, goal_id: goalId || undefined,
+          estimate_minutes: durationMin, goal_id: goalId || undefined,
           project_id: questLine || undefined,
         })
+        if (scheduledStart && onSchedule) {
+          onSchedule({ task, startISO: combineStart(scheduledStart, startTime), durationMin: durationMin ?? 60 })
+          onClose()
+          return
+        }
       } else if (kind === 'habit') {
         await planner.createHabit({
           name: title.trim(), cadence_type: cadence,
@@ -98,7 +124,7 @@
   onkeydown={(e) => e.key === 'Escape' && onClose()}
 >
   <div transition:fly={{ y: 16, duration: dur(240), easing: quintOut }} class="w-full max-w-md bg-bg-panel border border-border-default rounded-xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.7)]">
-    <h3 class="font-headline-md text-headline-md text-primary mb-4">{heads[kind]}</h3>
+    <h3 class="font-headline-md text-headline-md text-primary mb-4">{scheduledStart ? 'Schedule a task' : heads[kind]}</h3>
 
     <div class="space-y-3">
       <div>
@@ -120,19 +146,39 @@
             Urgent (override)
           </button>
         </div>
-        <div class="flex gap-3">
-          <div class="flex-1">
-            <label class={lbl} for="ai-est">Estimate (min)</label>
-            <input id="ai-est" bind:value={estimate} type="number" class={field} placeholder="60" />
+        {#if scheduledStart}
+          <div class="flex gap-3">
+            <div class="flex-1">
+              <label class={lbl} for="ai-start">Start</label>
+              <input id="ai-start" bind:value={startTime} type="time" class={field} />
+            </div>
+            <div class="flex-1">
+              <label class={lbl} for="ai-dur2">Duration (min)</label>
+              <input id="ai-dur2" bind:value={estimate} type="number" class={field} placeholder="60" />
+            </div>
           </div>
-          <div class="flex-1">
+          <div>
             <label class={lbl} for="ai-goal">Goal</label>
             <select id="ai-goal" bind:value={goalId} class={field}>
               <option value="">— none —</option>
               {#each goals as g (g.id)}<option value={g.id}>{g.title}</option>{/each}
             </select>
           </div>
-        </div>
+        {:else}
+          <div class="flex gap-3">
+            <div class="flex-1">
+              <label class={lbl} for="ai-est">Estimate (min)</label>
+              <input id="ai-est" bind:value={estimate} type="number" class={field} placeholder="60" />
+            </div>
+            <div class="flex-1">
+              <label class={lbl} for="ai-goal">Goal</label>
+              <select id="ai-goal" bind:value={goalId} class={field}>
+                <option value="">— none —</option>
+                {#each goals as g (g.id)}<option value={g.id}>{g.title}</option>{/each}
+              </select>
+            </div>
+          </div>
+        {/if}
       {/if}
 
       {#if kind === 'habit'}
@@ -192,7 +238,7 @@
     <div class="flex justify-end gap-3 mt-6">
       <button onclick={onClose} class="px-4 py-2 text-text-muted hover:text-on-surface font-label-md text-label-md uppercase tracking-wider">Cancel</button>
       <button onclick={submit} disabled={busy || !title.trim()}
-        class="px-5 py-2 bg-surface text-primary-container border border-primary-container rounded hover:shadow-[0_0_15px_rgba(127,201,138,0.3)] transition-all font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">
+        class="px-5 py-2 bg-surface text-primary-container border border-primary-container rounded hover:shadow-[0_0_15px_rgba(212,169,63,0.3)] transition-all font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">
         {busy ? 'Scribing...' : 'Scribe'}
       </button>
     </div>

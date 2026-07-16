@@ -64,7 +64,7 @@
         {/each}
       </div>
     {/if}
-    <div class="grimoire-card rounded-full p-1 pl-4 flex items-center shadow-[0_-10px_40px_rgba(7,16,11,0.9)] backdrop-blur-xl bg-bg-surface/90 border border-border-default focus-within:border-rune-entity/50 focus-within:shadow-[0_0_20px_rgba(157,107,217,0.2)] transition-all">
+    <div class="grimoire-card rounded-full p-1 pl-4 flex items-center shadow-[0_-10px_40px_rgba(12,11,20,0.9)] backdrop-blur-xl bg-bg-surface/90 border border-border-default focus-within:border-rune-entity/50 focus-within:shadow-[0_0_20px_rgba(157,107,217,0.2)] transition-all">
       <span class="material-symbols-outlined text-text-tertiary mr-2">{busy ? 'hourglass_top' : 'add_circle'}</span>
       <input
         bind:value

@@ -88,10 +88,10 @@
                 type="button"
                 onclick={() => (type = t.value)}
                 class="flex flex-col items-center gap-1 py-3 rounded-lg border transition-all duration-200"
-                style="border-color:{active ? rune.color : '#1e3327'}; background-color:{active ? `${rune.color}1a` : 'transparent'}; box-shadow:{active ? `0 0 12px ${rune.color}55` : 'none'}"
+                style="border-color:{active ? rune.color : '#29263f'}; background-color:{active ? `${rune.color}1a` : 'transparent'}; box-shadow:{active ? `0 0 12px ${rune.color}55` : 'none'}"
               >
                 <span class="material-symbols-outlined" style="color:{rune.color}">{rune.icon}</span>
-                <span class="font-label-md text-label-md" style="color:{active ? rune.color : '#8ca594'}">{t.label}</span>
+                <span class="font-label-md text-label-md" style="color:{active ? rune.color : '#9b96b8'}">{t.label}</span>
               </button>
             {/each}
           </div>
@@ -149,7 +149,7 @@
         <button
           type="submit"
           disabled={busy || !title.trim()}
-          class="py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(127,201,138,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-40"
+          class="py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-40"
         >
           {busy ? 'Inscribing...' : 'Inscribe'}
         </button>

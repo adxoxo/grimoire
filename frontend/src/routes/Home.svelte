@@ -85,7 +85,7 @@
   <div class="absolute top-6 md:top-8 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-30">
     <form
       onsubmit={runSearch}
-      class="relative bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex items-center px-4 py-3 group focus-within:border-rune-quest focus-within:shadow-[0_0_20px_rgba(111,191,115,0.2)] transition-all duration-300"
+      class="relative bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex items-center px-4 py-3 group focus-within:border-rune-quest focus-within:shadow-[0_0_20px_rgba(212,169,63,0.2)] transition-all duration-300"
     >
       <span class="material-symbols-outlined text-text-muted group-focus-within:text-rune-quest transition-colors mr-3">search</span>
       <input
@@ -98,7 +98,7 @@
         type="button"
         onclick={() => (showFilter = !showFilter)}
         class="material-symbols-outlined text-text-muted hover:text-primary ml-3 transition-colors"
-        style="color:{hidden.size ? '#6fbf73' : ''}"
+        style="color:{hidden.size ? '#d4a93f' : ''}"
         aria-label="Filter node types"
         aria-expanded={showFilter}
       >

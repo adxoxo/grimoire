@@ -31,13 +31,13 @@
   {:else}
     <article class="mt-6 mx-auto max-w-[800px]">
       <header class="mb-lg flex items-center gap-3 border-b border-border-subtle pb-6">
-        <span class="material-symbols-outlined text-rune-tome text-[32px]" style="filter:drop-shadow(0 0 8px #4fb6c9)">menu_book</span>
+        <span class="material-symbols-outlined text-rune-tome text-[32px]" style="filter:drop-shadow(0 0 8px #5b8dd9)">menu_book</span>
         <div>
           <span class="font-label-md text-label-md text-rune-tome uppercase tracking-widest">Tome</span>
           <h1 class="font-headline-lg text-headline-lg text-primary leading-none">{doc.title}</h1>
         </div>
       </header>
-      <!-- Content stays clean and plainly readable: Work Sans, not stylised into illegibility -->
+      <!-- Content stays clean and plainly readable: Spectral, not stylised into illegibility -->
       <div class="tome-content bg-bg-panel border border-border-default rounded-lg border-t-2 border-t-rune-tome p-8">
         <!-- eslint-disable-next-line svelte/no-at-html-tags -->
         {@html html}

@@ -79,7 +79,7 @@
     </a>
 
     <header class="mt-6 mb-lg flex items-center gap-3 border-b border-border-subtle pb-6">
-      <span class="material-symbols-outlined text-rune-quest text-[32px]" style="filter:drop-shadow(0 0 8px #6fbf73)">account_tree</span>
+      <span class="material-symbols-outlined text-rune-quest text-[32px]" style="filter:drop-shadow(0 0 8px #d4a93f)">account_tree</span>
       <div>
         <span class="font-label-md text-label-md text-rune-quest uppercase tracking-widest">Active quest line</span>
         <h1 class="font-display-lg text-display-lg text-primary leading-none">{project.title}</h1>
@@ -171,7 +171,7 @@
             <div class="flex items-center justify-between">
               <dt class="font-label-md text-label-md text-text-muted uppercase tracking-wider">Status</dt>
               <dd class="font-label-md text-label-md text-rune-quest flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-rune-quest" style="box-shadow:0 0 8px #6fbf73"></span>
+                <span class="w-2 h-2 rounded-full bg-rune-quest" style="box-shadow:0 0 8px #d4a93f"></span>
                 {project.status}
               </dd>
             </div>

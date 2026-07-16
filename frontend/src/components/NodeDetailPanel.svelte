@@ -99,7 +99,7 @@
   <div class="p-4 border-t border-border-subtle bg-surface-container-low rounded-b-xl">
     {#if node.type === 'project'}
       <button
-        class="w-full py-2 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(127,201,138,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider"
+        class="w-full py-2 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider"
         onclick={() => navigate(`/project/${encodeURIComponent(node.title)}`)}
       >
         Open quest line
@@ -107,7 +107,7 @@
     {/if}
     {#if node.type === 'document'}
       <button
-        class="w-full py-2 bg-surface text-rune-tome border border-rune-tome rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(79,182,201,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider"
+        class="w-full py-2 bg-surface text-rune-tome border border-rune-tome rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(91,141,217,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider"
         onclick={() => navigate(`/tome/${encodeURIComponent(node.id)}`)}
       >
         Open tome

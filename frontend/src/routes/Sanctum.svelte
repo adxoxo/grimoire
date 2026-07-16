@@ -63,7 +63,7 @@
   </a>
 
   <header class="mt-6 mb-lg flex items-center gap-3 border-b border-border-subtle pb-6">
-    <span class="material-symbols-outlined text-primary-container text-[32px]" style="filter:drop-shadow(0 0 8px #7fc98a)">fort</span>
+    <span class="material-symbols-outlined text-primary-container text-[32px]" style="filter:drop-shadow(0 0 8px #d4a93f)">fort</span>
     <div>
       <span class="font-label-md text-label-md text-primary-container uppercase tracking-widest">Review sanctum</span>
       <h1 class="font-headline-lg text-headline-lg text-primary leading-none">Unreviewed</h1>
@@ -112,7 +112,7 @@
           <button
             onclick={() => sanction(item.id)}
             disabled={busy === item.id}
-            class="py-1.5 px-3 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(127,201,138,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-50"
+            class="py-1.5 px-3 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-50"
           >
             {busy === item.id ? '...' : 'Sanction'}
           </button>

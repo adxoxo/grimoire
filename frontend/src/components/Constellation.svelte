@@ -161,7 +161,7 @@
 
       ctx.beginPath()
       ctx.arc(n.x, n.y, r, 0, TAU)
-      ctx.fillStyle = '#0c1710'
+      ctx.fillStyle = '#0e0d16'
       ctx.fill()
       ctx.lineWidth = sel ? 3 : n.id === hoverId ? 2.4 : 1.6
       ctx.strokeStyle = color
@@ -192,18 +192,18 @@
       const hot = sel || n.id === hoverId
       if (hot || n.type === 'project' || cam.k >= 1.1) {
         const label = n.title.length > 22 ? n.title.slice(0, 21) + '…' : n.title
-        ctx.font = '11px "Work Sans", sans-serif'
+        ctx.font = '11px "Spectral", sans-serif'
         const ly = n.y + r + 12
         if (hot) {
           const tw = ctx.measureText(label).width
           ctx.globalAlpha = 1
-          ctx.fillStyle = 'rgba(7,16,11,0.82)'
+          ctx.fillStyle = 'rgba(12,11,20,0.82)'
           ctx.beginPath()
           ctx.roundRect(n.x - tw / 2 - 5, ly - 9, tw + 10, 17, 3)
           ctx.fill()
-          ctx.fillStyle = '#e4efe7'
+          ctx.fillStyle = '#e5e0ee'
         } else {
-          ctx.fillStyle = '#c4d3c7'
+          ctx.fillStyle = '#cdc6b7'
         }
         ctx.fillText(label, n.x, ly)
       }

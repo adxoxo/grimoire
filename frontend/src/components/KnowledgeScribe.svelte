@@ -68,7 +68,7 @@
 
   const ok = $derived(last && !('error' in last) ? (last as { id: string; type: NodeType; title: string; project?: string }) : null)
   const err = $derived(last && 'error' in last ? last.error : null)
-  const accent = $derived(ok ? RUNE[ok.type].color : '#6fbf73')
+  const accent = $derived(ok ? RUNE[ok.type].color : '#d4a93f')
 </script>
 
 <div class="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-4 z-30">
@@ -88,9 +88,9 @@
     </div>
   {/if}
   <div
-    class="bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex items-center px-4 py-3 group focus-within:border-rune-quest focus-within:shadow-[0_0_20px_rgba(111,191,115,0.2)] transition-all duration-300"
+    class="bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex items-center px-4 py-3 group focus-within:border-rune-quest focus-within:shadow-[0_0_20px_rgba(212,169,63,0.2)] transition-all duration-300"
   >
-    <span class="material-symbols-outlined mr-3 transition-colors" style="color:{busy ? '#6fbf73' : ''}">
+    <span class="material-symbols-outlined mr-3 transition-colors" style="color:{busy ? '#d4a93f' : ''}">
       {busy ? 'hourglass_top' : 'edit_note'}
     </span>
     <input

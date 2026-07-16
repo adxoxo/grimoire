@@ -130,7 +130,7 @@
   <div class="px-6 mt-auto flex flex-col gap-4">
     <button
       onclick={scribe}
-      class="w-full py-2 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(127,201,138,0.3)] transition-all duration-300 font-headline-sm text-headline-sm flex items-center justify-center gap-2"
+      class="w-full py-2 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-headline-sm text-headline-sm flex items-center justify-center gap-2"
     >
       <span class="material-symbols-outlined">add</span>
       Scribe new node

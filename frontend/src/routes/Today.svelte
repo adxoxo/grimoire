@@ -118,14 +118,14 @@
   <div class="flex-shrink-0 flex items-center gap-2 pl-3 pr-2 py-2 rounded-full grimoire-card hover:border-rune-quest/50 transition-colors snap-start group">
     <button onclick={() => toggleHabit(h.id)} class="flex items-center gap-2 shrink-0" aria-label={`Toggle ${h.name}`}>
       {#if daily}
-        <span class="w-5 h-5 rounded-full border flex items-center justify-center {done ? 'border-rune-quest bg-rune-quest/20 shadow-[0_0_10px_rgba(111,191,115,0.4)]' : 'border-border-default'}">
+        <span class="w-5 h-5 rounded-full border flex items-center justify-center {done ? 'border-rune-quest bg-rune-quest/20 shadow-[0_0_10px_rgba(212,169,63,0.4)]' : 'border-border-default'}">
           {#if done}<span class="w-2.5 h-2.5 rounded-full bg-rune-quest"></span>{/if}
         </span>
       {:else}
         <span class="relative w-5 h-5 flex items-center justify-center">
           <svg class="w-full h-full -rotate-90" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10" fill="none" stroke="#23392b" stroke-width="2" />
-            <circle cx="12" cy="12" r="10" fill="none" stroke={done ? '#6fbf73' : '#4fb6c9'} stroke-width="2"
+            <circle cx="12" cy="12" r="10" fill="none" stroke="#35333e" stroke-width="2" />
+            <circle cx="12" cy="12" r="10" fill="none" stroke={done ? '#d4a93f' : '#5b8dd9'} stroke-width="2"
               stroke-dasharray={62.8} stroke-dashoffset={62.8 * (1 - Math.min(count / target, 1))} stroke-linecap="round" />
           </svg>
           <span class="absolute font-label-md text-[8px] text-on-surface-variant">{count}</span>
@@ -202,7 +202,7 @@
   {#each group.goals as g (g.id)}
     {@const total = (g.open_tasks ?? 0) + (g.done_tasks ?? 0)}
     {@const pct = total > 0 ? Math.round((100 * (g.done_tasks ?? 0)) / total) : 0}
-    {@const color = g.area_color ?? group.color ?? '#6fbf73'}
+    {@const color = g.area_color ?? group.color ?? '#d4a93f'}
     <div animate:flip={{ duration: dur(300) }} transition:fade={{ duration: dur(160) }}
       class="grimoire-card px-5 py-3 rounded-lg flex items-center gap-4 group">
       <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:{color}; box-shadow:0 0 8px {`${color}99`}"></span>
@@ -278,7 +278,7 @@
               ondragover={(e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; overQ = q }}
               ondragleave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) overQ = null }}
               ondrop={(e) => { e.preventDefault(); overQ = null; const id = e.dataTransfer?.getData('text/plain'); if (id) moveTask(id, q) }}
-              class="grimoire-card border-none rounded-none p-5 flex flex-col gap-3 relative min-h-[260px] min-w-0 transition-shadow"
+              class="grimoire-card border-none rounded-none p-5 flex flex-col gap-3 relative min-h-[240px] max-h-[46vh] min-w-0 transition-shadow"
               style="box-shadow:{overQ === q ? `inset 0 0 0 2px ${meta.color}, 0 0 28px ${meta.glow}` : `0 0 20px ${meta.glow}`}"
             >
               <div class="absolute top-0 left-0 w-1 h-full" style="background:{meta.color}"></div>
@@ -296,7 +296,7 @@
                   <span class="font-label-md text-label-md text-text-tertiary bg-surface-container-high px-2 py-1 rounded">{q}</span>
                 </div>
               </div>
-              <div class="flex flex-col gap-2 overflow-y-auto relative z-10">
+              <div class="flex flex-col gap-2 overflow-y-auto relative z-10 flex-1 min-h-0 pr-1">
                 {#if tasks.length === 0}
                   <div class="flex-1 flex flex-col items-center justify-center text-center py-8">
                     <span class="material-symbols-outlined text-[28px] text-border-default mb-1">inbox</span>

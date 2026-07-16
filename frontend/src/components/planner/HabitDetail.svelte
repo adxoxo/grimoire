@@ -180,7 +180,7 @@
                     class="w-[14px] h-[14px] rounded-sm border transition-colors disabled:opacity-60
                       {day.done ? 'bg-rune-quest border-rune-quest' : 'bg-surface-container border-border-subtle hover:border-rune-quest/50'}
                       {day.isToday ? 'ring-1 ring-primary ring-offset-1 ring-offset-bg-panel' : ''}"
-                    style={day.done ? 'box-shadow:0 0 6px rgba(111,191,115,0.5)' : ''}
+                    style={day.done ? 'box-shadow:0 0 6px rgba(212,169,63,0.5)' : ''}
                   ></button>
                 {/if}
               {/each}
@@ -203,7 +203,7 @@
         <span class="material-symbols-outlined text-[16px]">delete</span> Delete ritual
       </button>
       <button onclick={onClose}
-        class="py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(127,201,138,0.3)] transition-all font-label-md text-label-md uppercase tracking-wider">
+        class="py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all font-label-md text-label-md uppercase tracking-wider">
         Done
       </button>
     </div>

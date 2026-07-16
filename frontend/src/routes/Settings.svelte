@@ -60,7 +60,7 @@
   </a>
 
   <header class="mt-6 mb-lg flex items-center gap-3 border-b border-border-subtle pb-6">
-    <span class="material-symbols-outlined text-primary-container text-[32px]" style="filter:drop-shadow(0 0 8px #7fc98a)">settings</span>
+    <span class="material-symbols-outlined text-primary-container text-[32px]" style="filter:drop-shadow(0 0 8px #d4a93f)">settings</span>
     <div>
       <span class="font-label-md text-label-md text-primary-container uppercase tracking-widest">Settings</span>
       <h1 class="font-headline-lg text-headline-lg text-primary leading-none">Maintenance rites</h1>
@@ -81,7 +81,7 @@
         <button
           onclick={() => trigger(job)}
           disabled={running !== null}
-          class="shrink-0 py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(127,201,138,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-40"
+          class="shrink-0 py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-40"
         >
           {running === job.key ? 'Running...' : 'Run'}
         </button>

@@ -1,15 +1,19 @@
 <script lang="ts">
   import { fly, fade } from 'svelte/transition'
   import { quintOut } from 'svelte/easing'
-  import { planner, type Block, type FlowData, type PlanResult } from '../lib/api'
+  import { planner, type Block, type FlowData, type PlanResult, type Task } from '../lib/api'
   import { localDate } from '../lib/theme'
   import { liveRefresh } from '../lib/useLive.svelte'
   import { dur } from '../lib/motion.svelte'
   import Timeline from '../components/planner/Timeline.svelte'
   import AnchorsPanel from '../components/planner/AnchorsPanel.svelte'
   import PlannerChat from '../components/planner/PlannerChat.svelte'
+  import AddItemDialog from '../components/planner/AddItemDialog.svelte'
 
   const date = localDate()
+
+  // Slot double-clicked on the timeline -> the ISO start for the create modal (null = closed).
+  let createAt = $state<string | null>(null)
 
   let flow = $state<FlowData | null>(null)
   let result = $state<PlanResult | null>(null)
@@ -64,6 +68,18 @@
   }
   function deleteBlock(i: number) {
     saveBlocks(blocks.filter((_, j) => j !== i))
+  }
+
+  // Pin a freshly-created task to the clicked slot: append a locked block and persist.
+  // Locked so it survives reflow; "generate my day" rebuilds from scratch (documented).
+  function pinTask(info: { task: Task; startISO: string; durationMin: number }) {
+    const end = new Date(new Date(info.startISO).getTime() + info.durationMin * 60000).toISOString()
+    const block: Block = {
+      start: info.startISO, end, type: 'task', title: info.task.title,
+      ref_id: info.task.id, goal_block: false, locked: true, kind: null,
+    }
+    saveBlocks([...blocks, block].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0)))
+    createAt = null
   }
 
   // The fixed calendar frame: wake -> sleep (sleep rolls to next day if it's "earlier").
@@ -170,11 +186,11 @@
         <h2 class="font-headline-md text-headline-md text-primary mb-4 flex items-center gap-2">
           <span class="material-symbols-outlined">view_timeline</span>The flow
         </h2>
-        {#if blocks.length > 0}
+        {#if flow?.plan}
           <Timeline {blocks} windowStart={windowDates.start} windowEnd={windowDates.end}
             {overlay} onMove={moveBlock} onRename={renameBlock} onDelete={deleteBlock}
-            onInteractingChange={(v) => (interacting = v)} />
-          <p class="font-body-sm text-body-sm text-text-tertiary mt-3 ml-14">drag a block to reschedule it · double-click to rename · hover for delete</p>
+            onInteractingChange={(v) => (interacting = v)} onCreateAt={(iso) => (createAt = iso)} />
+          <p class="font-body-sm text-body-sm text-text-tertiary mt-3 ml-14">double-click a slot to add a task · drag a block to reschedule · double-click a block to rename</p>
         {:else}
           <div class="border border-dashed border-border-default rounded-xl py-20 text-center">
             <span class="material-symbols-outlined text-[40px] text-border-default mb-2">bedtime</span>
@@ -245,6 +261,11 @@
       </aside>
     </div>
   </div>
+
+  {#if createAt}
+    <AddItemDialog kind="task" scheduledStart={createAt}
+      onClose={() => (createAt = null)} onCreated={load} onSchedule={pinTask} />
+  {/if}
 
   <PlannerChat
     placeholder="Transmute thought to schedule..."

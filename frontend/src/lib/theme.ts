@@ -1,6 +1,6 @@
-// One glowing colour per node type — four, the ceiling per CLAUDE.md. Re-pigmented
-// around the aquryu brand green: quest lines are green (the primary/brand hue), tomes
-// aqua, so green + aqua literally reads as "aqua dragon".
+// One glowing colour per node type — four, the ceiling per CLAUDE.md. The dark arcane
+// grimoire palette: quest lines gold (the primary accent), tomes arcane blue,
+// chronicles ember, runes violet.
 export type NodeType = 'project' | 'document' | 'memory' | 'entity'
 
 interface Rune {
@@ -13,9 +13,9 @@ interface Rune {
 }
 
 export const RUNE: Record<NodeType, Rune> = {
-  project: { color: '#6fbf73', icon: 'account_tree', label: 'Quest line', glowClass: 'glow-quest', pulseClass: 'pulse-quest', nav: 'Quest lines' },
-  document: { color: '#4fb6c9', icon: 'menu_book', label: 'Tome', glowClass: 'glow-tome', pulseClass: 'pulse-tome', nav: 'Tomes' },
-  memory: { color: '#d9a24a', icon: 'auto_stories', label: 'Chronicle', glowClass: 'glow-chronicle', pulseClass: 'pulse-chronicle', nav: 'Chronicles' },
+  project: { color: '#d4a93f', icon: 'account_tree', label: 'Quest line', glowClass: 'glow-quest', pulseClass: 'pulse-quest', nav: 'Quest lines' },
+  document: { color: '#5b8dd9', icon: 'menu_book', label: 'Tome', glowClass: 'glow-tome', pulseClass: 'pulse-tome', nav: 'Tomes' },
+  memory: { color: '#d98b4a', icon: 'auto_stories', label: 'Chronicle', glowClass: 'glow-chronicle', pulseClass: 'pulse-chronicle', nav: 'Chronicles' },
   entity: { color: '#9d6bd9', icon: 'token', label: 'Rune', glowClass: 'glow-entity', pulseClass: 'pulse-entity', nav: 'Runes' },
 }
 
@@ -28,7 +28,7 @@ export function edgeColor(srcType: NodeType, dstType: NodeType): string {
 }
 
 // The Eisenhower quadrants reuse the four rune colours (the design ceiling), so the
-// planner needs no new palette: Q1 green, Q2 aqua, Q3 amber, Q4 violet.
+// planner needs no new palette: Q1 gold, Q2 arcane blue, Q3 ember, Q4 violet.
 export type Quadrant = 'Q1' | 'Q2' | 'Q3' | 'Q4'
 
 export interface QuadrantMeta {
@@ -40,8 +40,8 @@ export interface QuadrantMeta {
 }
 
 export const QUADRANT: Record<Quadrant, QuadrantMeta> = {
-  Q1: { id: 'Q1', label: 'Do now', icon: 'bolt', color: RUNE.project.color, glow: 'rgba(111,191,115,0.15)' },
-  Q2: { id: 'Q2', label: 'Schedule', icon: 'event', color: RUNE.document.color, glow: 'rgba(79,182,201,0.15)' },
+  Q1: { id: 'Q1', label: 'Do now', icon: 'bolt', color: RUNE.project.color, glow: 'rgba(212,169,63,0.15)' },
+  Q2: { id: 'Q2', label: 'Schedule', icon: 'event', color: RUNE.document.color, glow: 'rgba(91,141,217,0.15)' },
   Q3: { id: 'Q3', label: 'Minimize', icon: 'filter_list', color: RUNE.memory.color, glow: 'rgba(217,162,74,0.15)' },
   Q4: { id: 'Q4', label: 'Someday', icon: 'cloud', color: RUNE.entity.color, glow: 'rgba(157,107,217,0.15)' },
 }
