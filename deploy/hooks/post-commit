@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Grimoire post-commit hook: re-ingests a distilled codebase map after each commit,
+# debounced so it doesn't fire on every trivial commit. Never fails the commit:
+# everything below is wrapped so this hook always exits 0, silently, on any error.
+#
+# Installed by scripts/install_git_hooks.sh into .git/hooks/post-commit.
+
+{
+  REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+  [ -n "$REPO_ROOT" ] || exit 0
+  cd "$REPO_ROOT" 2>/dev/null || exit 0
+
+  # Skip silently if there is no way to extract a codebase map: no graphify on PATH,
+  # and this hook has no stored convention for a pre-generated --graphify-out.
+  command -v graphify >/dev/null 2>&1 || exit 0
+
+  PROJECT_NAME="$(basename "$REPO_ROOT")"
+  HEAD_COMMIT="$(git rev-parse HEAD 2>/dev/null)"
+  STATE_FILE="data/codebase_ingest.json"
+  LOG_FILE="data/logs/codebase_ingest.log"
+  mkdir -p data/logs 2>/dev/null
+
+  # Debounce: read the last ingested commit + its age (seconds) for this repo in one
+  # python call. Missing/junk state degrades to "never ingested" (commit='', age=huge).
+  DEBOUNCE="$(python3 -c "
+import json
+from datetime import datetime, timezone
+commit, age = '', 999999
+try:
+    state = json.load(open('$STATE_FILE'))
+    entry = state.get('$REPO_ROOT') or {}
+    commit = entry.get('commit', '')
+    at = entry.get('ingested_at', '')
+    if at:
+        t = datetime.fromisoformat(at)
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        age = int((datetime.now(timezone.utc) - t).total_seconds())
+except Exception:
+    pass
+print(commit, age)
+" 2>/dev/null)" || exit 0
+
+  LAST_COMMIT="${DEBOUNCE%% *}"
+  LAST_AGE="${DEBOUNCE##* }"
+
+  [ "$LAST_COMMIT" = "$HEAD_COMMIT" ] && exit 0
+  case "$LAST_AGE" in ''|*[!0-9]*) LAST_AGE=999999 ;; esac
+  [ "$LAST_AGE" -lt 600 ] && exit 0
+
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) auto-ingest starting: repo=$REPO_ROOT commit=$HEAD_COMMIT" >> "$LOG_FILE" 2>/dev/null
+
+  nohup .venv/bin/python scripts/ingest_codebase.py "$REPO_ROOT" "$PROJECT_NAME" >> "$LOG_FILE" 2>&1 &
+
+  exit 0
+} || exit 0
