@@ -13,6 +13,8 @@ export interface GraphEdge {
   src: string
   dst: string
   rel: string
+  provenance?: 'explicit' | 'inferred' | 'ambiguous'
+  confidence?: number
 }
 
 export interface NodePosition {

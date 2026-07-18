@@ -16,10 +16,14 @@ CREATE TABLE IF NOT EXISTS nodes (
 );
 
 -- Edges: typed links. rel is 'belongs_to' | 'references' | 'mentions' | 'derived_from'.
+-- provenance: 'explicit' (a user/agent tool call) | 'inferred' (auto-linking logic) |
+-- 'ambiguous'. confidence rides alongside (1.0 for explicit) for future auto-linkers.
 CREATE TABLE IF NOT EXISTS edges (
   src TEXT NOT NULL REFERENCES nodes(id),
   dst TEXT NOT NULL REFERENCES nodes(id),
   rel TEXT NOT NULL,
+  provenance TEXT NOT NULL DEFAULT 'explicit',
+  confidence REAL NOT NULL DEFAULT 1.0,
   created_at TEXT NOT NULL,
   PRIMARY KEY (src, dst, rel)
 );

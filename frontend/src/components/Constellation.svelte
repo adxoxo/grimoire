@@ -14,6 +14,7 @@
     source: SimNode
     target: SimNode
     rel: string
+    inferred: boolean
   }
 
   const RADIUS: Record<NodeType, number> = { project: 30, memory: 20, document: 19, entity: 17 }
@@ -178,7 +179,9 @@
       const t = l.target
       if (!s || !t || !vis(s) || !vis(t)) continue
       const focus = Math.min(focusFactor(s.id, nowT), focusFactor(t.id, nowT))
-      ctx.globalAlpha = (matched(s) && matched(t) ? 0.3 : 0.07) * focus
+      // Provenance: inferred edges render dashed and lighter than explicit ones.
+      ctx.globalAlpha = (matched(s) && matched(t) ? 0.3 : 0.07) * focus * (l.inferred ? 0.6 : 1)
+      ctx.setLineDash(l.inferred ? [4, 4] : [])
       const sameCommunity =
         colorByCommunity && s.community_id != null && s.community_id === t.community_id
       ctx.strokeStyle = sameCommunity ? communityColor(s.community_id!) : edgeColor(s.type, t.type)
@@ -187,6 +190,7 @@
       ctx.lineTo(t.x, t.y)
       ctx.stroke()
     }
+    ctx.setLineDash([])
     ctx.globalAlpha = 1
 
     // community labels at cluster centroids (global view only), behind the nodes
@@ -437,7 +441,12 @@
     const byId = new Map(nodes.map((n) => [n.id, n]))
     links = g.edges
       .filter((e) => byId.has(e.src) && byId.has(e.dst))
-      .map((e) => ({ source: e.src as unknown as SimNode, target: e.dst as unknown as SimNode, rel: e.rel }))
+      .map((e) => ({
+        source: e.src as unknown as SimNode,
+        target: e.dst as unknown as SimNode,
+        rel: e.rel,
+        inferred: e.provenance != null && e.provenance !== 'explicit',
+      }))
 
     const cx = cssW / 2
     const cy = cssH / 2

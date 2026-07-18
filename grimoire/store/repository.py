@@ -28,6 +28,7 @@ SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 # Node types and edge relations, kept here so callers reference names, not literals.
 NODE_TYPES = ("document", "memory", "project", "entity")
 EDGE_RELS = ("belongs_to", "references", "mentions", "derived_from")
+EDGE_PROVENANCE = ("explicit", "inferred", "ambiguous")
 
 
 def _now() -> str:
@@ -79,6 +80,16 @@ class Repository:
         with self._conn:
             if "community_id" not in cols("nodes"):
                 self._conn.execute("ALTER TABLE nodes ADD COLUMN community_id INTEGER")
+            edge_cols = cols("edges")
+            if "provenance" not in edge_cols:
+                # existing edges were all created by explicit tool calls; the default backfills them
+                self._conn.execute(
+                    "ALTER TABLE edges ADD COLUMN provenance TEXT NOT NULL DEFAULT 'explicit'"
+                )
+            if "confidence" not in edge_cols:
+                self._conn.execute(
+                    "ALTER TABLE edges ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0"
+                )
 
     def close(self) -> None:
         self._conn.close()
@@ -134,7 +145,9 @@ class Repository:
 
     def list_edges(self) -> list[dict[str, Any]]:
         """All edges. Used by the constellation graph."""
-        rows = self._conn.execute("SELECT src, dst, rel FROM edges").fetchall()
+        rows = self._conn.execute(
+            "SELECT src, dst, rel, provenance, confidence FROM edges"
+        ).fetchall()
         return [dict(r) for r in rows]
 
     # ---- constellation layout --------------------------------------------
@@ -197,13 +210,21 @@ class Repository:
         ).fetchall()
         return [r["content"] for r in rows]
 
-    def link_nodes(self, src: str, dst: str, rel: str) -> None:
+    def link_nodes(
+        self, src: str, dst: str, rel: str,
+        provenance: str = "explicit", confidence: float = 1.0,
+    ) -> None:
+        """Create a typed edge. Tool-call writes stay 'explicit' (the default); any
+        future auto-linker must pass provenance='inferred' with its confidence."""
         if rel not in EDGE_RELS:
             raise ValueError(f"unknown edge relation: {rel!r}")
+        if provenance not in EDGE_PROVENANCE:
+            raise ValueError(f"unknown edge provenance: {provenance!r}")
         with self._conn:
             self._conn.execute(
-                "INSERT OR IGNORE INTO edges(src,dst,rel,created_at) VALUES (?,?,?,?)",
-                (src, dst, rel, _now()),
+                "INSERT OR IGNORE INTO edges(src,dst,rel,provenance,confidence,created_at)"
+                " VALUES (?,?,?,?,?,?)",
+                (src, dst, rel, provenance, float(confidence), _now()),
             )
 
     def unlink_nodes(self, src: str, dst: str, rel: str) -> int:
