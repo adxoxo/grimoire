@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import { forceCollide, forceLink, forceManyBody, forceSimulation } from 'd3'
+  import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY } from 'd3'
   import { api, type Graph, type GraphNode } from '../lib/api'
   import { RUNE, communityColor, edgeColor, type NodeType } from '../lib/theme'
 
@@ -314,7 +314,7 @@
     const r = canvas!.getBoundingClientRect()
     const mx = e.clientX - r.left
     const my = e.clientY - r.top
-    const k2 = Math.max(0.2, Math.min(3, cam.k * Math.exp(-e.deltaY * 0.0015)))
+    const k2 = Math.max(0.1, Math.min(3, cam.k * Math.exp(-e.deltaY * 0.0015)))
     cam.x = mx - (mx - cam.x) * (k2 / cam.k)
     cam.y = my - (my - cam.y) * (k2 / cam.k)
     cam.k = k2
@@ -481,7 +481,9 @@
     }
 
     const anchors = nodes.filter(isAnchor).sort((a, b) => (a.id < b.id ? -1 : 1))
-    const ring = Math.max(180, anchors.length * 55)
+    // Ring radius from circumference (each anchor gets ~140px of arc), not from a
+    // per-anchor radius multiplier: 40 quest lines means r~890, not an unusable 2200.
+    const ring = Math.max(180, (anchors.length * 140) / TAU)
     anchors.forEach((n, i) => {
       const s = saved.get(n.id)
       if (s) {
@@ -526,6 +528,11 @@
         )
         .force('charge', forceManyBody<SimNode>().strength(-320))
         .force('collide', forceCollide<SimNode>((d) => RADIUS[d.type] + 14))
+        // Weak pull toward the ring centre so unbounded charge repulsion cannot
+        // explode the leaves off-viewport (it only acts during this bounded settle;
+        // the layout freezes right after).
+        .force('x', forceX<SimNode>(cx).strength(0.05))
+        .force('y', forceY<SimNode>(cy).strength(0.05))
         .stop()
       const ticks = saved.size === 0 ? FULL_TICKS : INCREMENTAL_TICKS
       for (let i = 0; i < ticks; i++) sim.tick()
@@ -557,19 +564,33 @@
     scheduleDraw()
   })
 
-  // Refocus: capture current alphas as the fade origin, swap the focus set, and glide
-  // the camera to the focus node at the current zoom. Positions never change on focus
-  // (the layout is frozen); only alphas and the viewport move.
+  // Refocus: capture current alphas as the fade origin, swap the focus set, and fit
+  // the camera to the visible neighbourhood (the whole graph in the All view). A
+  // single-node glide at fixed zoom cannot frame an arbitrary layout; fitting the
+  // bounding box always lands the user on the content. Positions never change on
+  // focus (the layout is frozen); only alphas and the viewport move.
   let glideRaf = 0
-  let lastCenter: string | null = null
+  let lastFitSig: string | null = null
 
-  function glideTo(id: string) {
-    const n = nodes.find((m) => m.id === id)
-    if (!n) return
-    const sx = cam.x
-    const sy = cam.y
-    const tx = cssW / 2 - cam.k * n.x
-    const ty = cssH / 2 - cam.k * n.y
+  function fitTo(ids: Set<string> | null) {
+    const targets = ids ? nodes.filter((n) => ids.has(n.id)) : nodes
+    if (targets.length === 0) return
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const n of targets) {
+      if (n.x < minX) minX = n.x
+      if (n.x > maxX) maxX = n.x
+      if (n.y < minY) minY = n.y
+      if (n.y > maxY) maxY = n.y
+    }
+    const pad = 90
+    const bw = Math.max(maxX - minX, 200) + pad * 2
+    const bh = Math.max(maxY - minY, 200) + pad * 2
+    const tk = Math.min(1.5, Math.max(0.1, Math.min(cssW / bw, cssH / bh)))
+    const mx = (minX + maxX) / 2
+    const my = (minY + maxY) / 2
+    const tx = cssW / 2 - tk * mx
+    const ty = cssH / 2 - tk * my
+    const sx = cam.x, sy = cam.y, sk = cam.k
     const t0 = performance.now()
     cancelAnimationFrame(glideRaf)
     const step = (t: number) => {
@@ -577,6 +598,7 @@
       const e = 1 - Math.pow(1 - p, 3) // ease-out cubic
       cam.x = sx + (tx - sx) * e
       cam.y = sy + (ty - sy) * e
+      cam.k = sk + (tk - sk) * e
       scheduleDraw()
       if (p < 1) glideRaf = requestAnimationFrame(step)
     }
@@ -592,8 +614,14 @@
     fadeFrom = from
     focusSet = ids
     fadeStart = now
-    if (center && center !== lastCenter) glideTo(center)
-    lastCenter = center ?? null
+    // Refit when the focus target, the neighbourhood size (depth), or the mode
+    // changes - but not on every live poll (ids is a fresh Set each time), so manual
+    // pan/zoom is never yanked away mid-session.
+    const fitSig = `${center ?? '__all__'}:${ids?.size ?? -1}`
+    if (fitSig !== lastFitSig) {
+      lastFitSig = fitSig
+      fitTo(ids)
+    }
     scheduleDraw()
   })
 
