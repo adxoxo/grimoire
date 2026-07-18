@@ -18,6 +18,7 @@
     "@tsconfig/svelte": "^5.0.4",
     "@types/d3": "^7.4.3",
     "autoprefixer": "^10.4.20",
+    "playwright": "^1.61.1",
     "postcss": "^8.4.49",
     "svelte": "^5.56.5",
     "svelte-check": "^4.7.2",
