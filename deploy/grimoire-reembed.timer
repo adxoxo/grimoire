@@ -1,0 +1,10 @@
+# Runs grimoire-reembed.service monthly. Installed by scripts/install_timers.sh.
+[Unit]
+Description=Monthly Grimoire re-embed
+
+[Timer]
+OnCalendar=monthly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

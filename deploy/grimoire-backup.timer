@@ -1,0 +1,10 @@
+# Runs grimoire-backup.service daily. Installed by scripts/install_timers.sh.
+[Unit]
+Description=Daily Grimoire backup
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -11,6 +11,16 @@ import httpx
 from grimoire.providers.base import Provider
 
 
+def verify_reachable(url: str, timeout: float = 3.0) -> None:
+    """Raise a RuntimeError with an actionable message if Ollama is unreachable at url."""
+    try:
+        httpx.get(f"{url.rstrip('/')}/api/tags", timeout=timeout).raise_for_status()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Ollama unreachable at {url}: {exc}. Set GRIMOIRE_OLLAMA_URL or start Ollama."
+        ) from exc
+
+
 class OllamaProvider(Provider):
     def __init__(
         self,

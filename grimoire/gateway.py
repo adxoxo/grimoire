@@ -502,6 +502,12 @@ def build_http_app():
 
 
 if __name__ == "__main__":
+    # Fail loudly when the configured Ollama is unreachable: an MCP server with broken
+    # embeddings silently corrupts every retrieval, so refuse to start instead.
+    if settings.provider == "ollama":
+        from grimoire.providers.ollama import verify_reachable
+
+        verify_reachable(settings.ollama_url)
     if settings.mcp_transport == "http":
         import uvicorn
 

@@ -1,0 +1,13 @@
+# systemd USER service: monthly full re-embed (also runs compaction; both are
+# scheduled store-maintenance jobs and share the compact.py entrypoint).
+# Installed by scripts/install_timers.sh. Logs: data/logs/grimoire-reembed.log
+[Unit]
+Description=Grimoire monthly re-embed
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/adyu/apps/grimoire
+EnvironmentFile=-/home/adyu/apps/grimoire/.env
+ExecStart=/home/adyu/apps/grimoire/.venv/bin/python scripts/compact.py --reembed
+StandardOutput=append:/home/adyu/apps/grimoire/data/logs/grimoire-reembed.log
+StandardError=append:/home/adyu/apps/grimoire/data/logs/grimoire-reembed.log

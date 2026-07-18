@@ -6,9 +6,36 @@ without touching this global. `settings` is just the default the app entrypoints
 
 from __future__ import annotations
 
+import re
+import subprocess
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEFAULT_OLLAMA_URL = "http://localhost:11434"
+
+
+def _resolve_wsl_ollama_url() -> str:
+    """Resolve the Windows-host Ollama URL from inside WSL2 via the default route.
+
+    WSL2 output looks like: "default via 172.x.x.1 dev eth0 ...". Falls back to
+    localhost on any failure (command missing, no match, unexpected output).
+    """
+    try:
+        out = subprocess.run(
+            ["ip", "route", "show", "default"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=True,
+        ).stdout
+        match = re.search(r"default via (\S+)", out)
+        if match:
+            return f"http://{match.group(1)}:11434"
+    except Exception:
+        pass
+    return _DEFAULT_OLLAMA_URL
 
 
 class Settings(BaseSettings):
@@ -20,10 +47,17 @@ class Settings(BaseSettings):
     # Provider interface selection: 'ollama' (real local) or 'fake' (offline, deterministic)
     provider: str = "ollama"
 
-    # Ollama
-    ollama_url: str = "http://localhost:11434"
+    # Ollama. "auto" (default) resolves the WSL2 host gateway at startup; an explicit
+    # URL passes through untouched.
+    ollama_url: str = "auto"
     embed_model: str = "nomic-embed-text"
     llm_model: str = "llama3.2"
+
+    @model_validator(mode="after")
+    def _resolve_ollama_url(self) -> "Settings":
+        if self.ollama_url in ("", "auto"):
+            self.ollama_url = _resolve_wsl_ollama_url()
+        return self
 
     # Groq (optional). When a key is set, completion uses Groq first and falls back to
     # Ollama on rate-limit/timeout. Embeddings always stay on Ollama (Groq has none).
@@ -53,6 +87,11 @@ class Settings(BaseSettings):
     # Bearer token required on the HTTP MCP endpoint. Empty = no check (local only).
     # Always set this when exposing the server beyond localhost.
     mcp_token: str = ""
+
+    # Bearer token required on write-capable REST routes (/api/capture and every
+    # POST/PUT/PATCH/DELETE). Empty = no check (local only). Set it before exposing
+    # the API beyond localhost.
+    api_token: str = ""
 
     # Extra browser origins allowed to call the REST API (comma-separated),
     # e.g. "https://grimoire.aquryu.space". localhost dev origins are always allowed.

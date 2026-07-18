@@ -43,16 +43,30 @@ def restore_backup(backup_path: str | Path, db_path: str | Path | None = None) -
     return db_path
 
 
+def prune_backups(backup_dir: str | Path = "backups", retain: int = 14) -> list[Path]:
+    """Delete all but the `retain` most recent grimoire-*.db backups. Returns deleted paths."""
+    backup_dir = Path(backup_dir)
+    backups = sorted(backup_dir.glob("grimoire-*.db"), key=lambda p: p.name, reverse=True)
+    stale = backups[retain:]
+    for path in stale:
+        path.unlink()
+    return stale
+
+
 def _main() -> None:
     parser = argparse.ArgumentParser(description="Grimoire backup/restore")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("backup", help="create a verified backup")
+    b = sub.add_parser("backup", help="create a verified backup")
+    b.add_argument("--retain", type=int, default=14, help="keep only the N most recent backups (default 14)")
     r = sub.add_parser("restore", help="restore a backup over the live store")
     r.add_argument("path", help="backup file to restore")
     args = parser.parse_args()
 
     if args.cmd == "backup":
         print(f"backup written and verified: {make_backup()}")
+        stale = prune_backups(retain=args.retain)
+        if stale:
+            print(f"pruned {len(stale)} old backup(s): {', '.join(p.name for p in stale)}")
     elif args.cmd == "restore":
         print(f"restored and verified: {restore_backup(args.path)}")
 
