@@ -194,7 +194,11 @@ class KnowledgeService:
     # ---- write path: documents -----------------------------------------
 
     def ingest_document(
-        self, source: str, project: str | None = None, title: str | None = None
+        self,
+        source: str,
+        project: str | None = None,
+        title: str | None = None,
+        extra_meta: dict | None = None,
     ) -> dict:
         """Convert source to markdown, chunk, embed, and write node + chunks + vectors.
         Links the document to a project when given. Returns the node id and chunk count.
@@ -205,7 +209,8 @@ class KnowledgeService:
         # Keep the full markdown on the node (not embedded) so the tome reader shows the
         # original document, not overlap-duplicated chunks.
         node_id = self.repo.add_node(
-            "document", title, status="unreviewed", meta={"source": source}, context_summary=markdown
+            "document", title, status="unreviewed",
+            meta={"source": source, **(extra_meta or {})}, context_summary=markdown
         )
         for seq, chunk in enumerate(chunks):
             self.repo.add_chunk(node_id, seq, chunk, self.provider.embed(chunk))

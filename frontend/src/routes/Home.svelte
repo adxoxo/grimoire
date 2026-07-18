@@ -40,6 +40,14 @@
     }
   })
 
+  // Clear a stale selection: if another client deleted the selected node, the refreshed
+  // graph no longer contains it, so drop it before the detail panel's delete button gets
+  // a chance to 404 against a node that no longer exists.
+  $effect(() => {
+    if (!graph || !selected) return
+    if (!graph.nodes.some((n) => n.id === selected!.id)) selected = null
+  })
+
   // The focus neighbourhood: BFS out to `depth` hops, undirected, with the same entity
   // supernode cap as retrieval, so a shared rune never bridges unrelated clusters
   // (unless it is itself the focus).
@@ -207,7 +215,8 @@
         {#each ['focus', 'all'] as const as m (m)}
           <button
             onclick={() => (mode = m)}
-            class="px-3 py-1 font-label-md text-label-md transition-colors"
+            disabled={m === 'focus' && !focusId}
+            class="px-3 py-1 font-label-md text-label-md transition-colors disabled:opacity-40"
             style="background:{mode === m ? 'rgba(212,169,63,0.14)' : 'transparent'};color:{mode === m ? '#e3d3a0' : '#6b6789'}"
           >
             {m === 'focus' ? 'Focus' : 'All'}

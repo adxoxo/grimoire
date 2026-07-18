@@ -43,6 +43,18 @@ def test_resolve_wsl_ollama_url_falls_back_on_missing_command(monkeypatch):
     assert config_module._resolve_wsl_ollama_url() == config_module._DEFAULT_OLLAMA_URL
 
 
+def test_resolve_skips_route_heuristic_outside_wsl(monkeypatch):
+    """On a bare Linux server or in Docker the default-route gateway is NOT the
+    Ollama host; the resolver must fall back to localhost without probing routes."""
+    monkeypatch.setattr(config_module, "_running_under_wsl", lambda: False)
+
+    def boom(*args, **kwargs):
+        raise AssertionError("route lookup must not run outside WSL")
+
+    monkeypatch.setattr(config_module.subprocess, "run", boom)
+    assert config_module._resolve_wsl_ollama_url() == config_module._DEFAULT_OLLAMA_URL
+
+
 def test_resolve_wsl_ollama_url_falls_back_on_no_match(monkeypatch):
     class FakeResult:
         stdout = "some unrelated output\n"

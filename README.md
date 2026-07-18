@@ -210,6 +210,11 @@ tunnel (no ports opened on the host, TLS terminated by Cloudflare):
 | `grimoire-web` | `:8731` | REST API + the built Svelte dashboard |
 | `grimoire-mcp` | `:8730` | MCP gateway over streamable HTTP, behind a bearer token |
 
+Write-capable REST routes (every POST/PUT/PATCH/DELETE under `/api`) are guarded by
+`GRIMOIRE_API_TOKEN` once it is set: requests need `Authorization: Bearer <token>`, and
+the dashboard sends it automatically after you paste the token into its Settings page.
+Empty token = no check, for local-only use.
+
 Ollama (embeddings, and completion fallback behind Groq) runs on the Windows host and is
 reached from WSL2 over the network; `GRIMOIRE_OLLAMA_URL=auto` resolves the Windows
 gateway IP at startup. systemd user timers handle maintenance: compact, reembed, backup.

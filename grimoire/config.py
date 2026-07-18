@@ -6,6 +6,7 @@ without touching this global. `settings` is just the default the app entrypoints
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -16,12 +17,25 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _DEFAULT_OLLAMA_URL = "http://localhost:11434"
 
 
+def _running_under_wsl() -> bool:
+    """True only inside WSL. The default-route heuristic below is WSL2-specific;
+    on a bare Linux server or in Docker the gateway IP is NOT the Ollama host."""
+    if os.environ.get("WSL_DISTRO_NAME"):
+        return True
+    try:
+        return "microsoft" in Path("/proc/version").read_text().lower()
+    except OSError:
+        return False
+
+
 def _resolve_wsl_ollama_url() -> str:
     """Resolve the Windows-host Ollama URL from inside WSL2 via the default route.
 
     WSL2 output looks like: "default via 172.x.x.1 dev eth0 ...". Falls back to
-    localhost on any failure (command missing, no match, unexpected output).
+    localhost on any failure (not WSL, command missing, no match, odd output).
     """
+    if not _running_under_wsl():
+        return _DEFAULT_OLLAMA_URL
     try:
         out = subprocess.run(
             ["ip", "route", "show", "default"],

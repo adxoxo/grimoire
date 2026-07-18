@@ -62,14 +62,42 @@ class Repository:
         self._conn.enable_load_extension(False)
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.execute("PRAGMA journal_mode = WAL")
+        self._conn.execute("PRAGMA busy_timeout = 5000")
         self.initialize()
 
     # ---- lifecycle -------------------------------------------------------
 
+    def _table_exists(self, table: str) -> bool:
+        return self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)
+        ).fetchone() is not None
+
     def initialize(self) -> None:
         """Create the schema if absent, then apply additive migrations. Idempotent."""
+        self._recover_edges_rebuild()
         self._conn.executescript(SCHEMA_PATH.read_text())
         self._migrate()
+
+    def _recover_edges_rebuild(self) -> None:
+        """Heal a crash mid-rebuild of the edges table (see _migrate). sqlite3
+        autocommits DDL, so a process that dies partway through the edges rebuild
+        can leave the store between steps: `edges` renamed away with no
+        replacement, or a `edges_new` build that never got swapped in. This must
+        run before the schema script below, whose `CREATE TABLE IF NOT EXISTS
+        edges` would otherwise paper over a missing table with an empty one and
+        silently strand the real data in edges_old/edges_new.
+        """
+        with self._conn:
+            if not self._table_exists("edges") and self._table_exists("edges_old"):
+                # crashed before the rebuilt table was ever put in place: resume from scratch
+                self._conn.execute("ALTER TABLE edges_old RENAME TO edges")
+            if self._table_exists("edges_new"):
+                if self._table_exists("edges"):
+                    # crashed before DROP TABLE edges ran: the new build is stale
+                    self._conn.execute("DROP TABLE edges_new")
+                else:
+                    # crashed between DROP TABLE edges and the final RENAME
+                    self._conn.execute("ALTER TABLE edges_new RENAME TO edges")
 
     def _migrate(self) -> None:
         """Additive column migrations for stores created before a schema change
@@ -101,9 +129,13 @@ class Repository:
             if "valid_from" not in edge_cols:
                 # Bitemporal validity needs valid_from in the primary key (a severed link
                 # must be re-creatable), and SQLite cannot alter a PK: rebuild the table.
-                self._conn.execute("ALTER TABLE edges RENAME TO edges_old")
+                # Built forward (edges_new alongside the live edges table, then swapped
+                # in) rather than renaming edges out of the way first, so a crash never
+                # leaves the store without an edges table at all. The only vulnerable
+                # window is between DROP TABLE edges and the RENAME below, and
+                # _recover_edges_rebuild heals exactly that state on next open.
                 self._conn.execute(
-                    "CREATE TABLE edges ("
+                    "CREATE TABLE edges_new ("
                     " src TEXT NOT NULL REFERENCES nodes(id),"
                     " dst TEXT NOT NULL REFERENCES nodes(id),"
                     " rel TEXT NOT NULL,"
@@ -115,10 +147,11 @@ class Repository:
                     " PRIMARY KEY (src, dst, rel, valid_from))"
                 )
                 self._conn.execute(
-                    "INSERT INTO edges(src,dst,rel,provenance,confidence,created_at,valid_from,invalidated_at)"
-                    " SELECT src,dst,rel,provenance,confidence,created_at,created_at,NULL FROM edges_old"
+                    "INSERT INTO edges_new(src,dst,rel,provenance,confidence,created_at,valid_from,invalidated_at)"
+                    " SELECT src,dst,rel,provenance,confidence,created_at,created_at,NULL FROM edges"
                 )
-                self._conn.execute("DROP TABLE edges_old")
+                self._conn.execute("DROP TABLE edges")
+                self._conn.execute("ALTER TABLE edges_new RENAME TO edges")
                 self._conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_dst ON edges(dst, rel)")
                 self._conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_src ON edges(src, rel)")
             # FTS backfill: stores that predate the keyword index (its triggers only see
@@ -168,17 +201,18 @@ class Repository:
         return self._node_row_to_dict(row) if row else None
 
     def list_nodes(self, type: str | None = None) -> list[dict[str, Any]]:
-        """All nodes, optionally filtered by type. Used by the constellation graph."""
+        """All currently-valid nodes, optionally filtered by type. Used by the
+        constellation graph, the Obsidian export, and Louvain clustering."""
         if type is not None:
             rows = self._conn.execute(
                 "SELECT id, type, title, status, community_id, updated_at FROM nodes"
-                " WHERE type = ? ORDER BY updated_at DESC",
+                " WHERE type = ? AND invalidated_at IS NULL ORDER BY updated_at DESC",
                 (type,),
             ).fetchall()
         else:
             rows = self._conn.execute(
                 "SELECT id, type, title, status, community_id, updated_at FROM nodes"
-                " ORDER BY updated_at DESC"
+                " WHERE invalidated_at IS NULL ORDER BY updated_at DESC"
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -549,7 +583,8 @@ class Repository:
         linked = self._conn.execute(
             "SELECT n.id, n.type, n.title, n.status, e.rel"
             " FROM edges e JOIN nodes n ON n.id = e.src"
-            " WHERE e.dst = ? AND e.invalidated_at IS NULL ORDER BY n.updated_at DESC",
+            " WHERE e.dst = ? AND e.invalidated_at IS NULL AND n.invalidated_at IS NULL"
+            " ORDER BY n.updated_at DESC",
             (proj["id"],),
         ).fetchall()
         out = self._node_row_to_dict(proj)
@@ -670,6 +705,8 @@ class Repository:
     def archive_node(self, node_id: str) -> None:
         """Archive a node: mark it archived and drop it from the embedded layer (so it
         no longer surfaces in retrieval), keeping the node and its raw turns for audit.
+        Its edges are invalidated too - except derived_from lineage, which documents
+        the supersede event itself and must stay current for kb_history.
         """
         with self._conn:
             now = _now()
@@ -677,6 +714,11 @@ class Repository:
                 "UPDATE nodes SET status = 'archived', updated_at = ?,"
                 " invalidated_at = COALESCE(invalidated_at, ?) WHERE id = ?",
                 (now, now, node_id),
+            )
+            self._conn.execute(
+                "UPDATE edges SET invalidated_at = ? WHERE (src = ? OR dst = ?)"
+                " AND rel != 'derived_from' AND invalidated_at IS NULL",
+                (now, node_id, node_id),
             )
             self._conn.execute(
                 "DELETE FROM chunk_vectors WHERE chunk_id IN (SELECT id FROM chunks WHERE node_id = ?)",

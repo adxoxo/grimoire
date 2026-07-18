@@ -22,6 +22,7 @@ services:
       GRIMOIRE_LLM_MODEL: llama3.2
       GRIMOIRE_GROQ_API_KEY: ${GRIMOIRE_GROQ_API_KEY:-}
       GRIMOIRE_PUBLIC_ORIGINS: ${GRIMOIRE_PUBLIC_ORIGINS:-}
+      GRIMOIRE_API_TOKEN: ${GRIMOIRE_API_TOKEN:-}
     volumes:
       - grimoire_data:/app/data
       - grimoire_backups:/app/backups

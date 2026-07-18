@@ -1,6 +1,6 @@
 """Community detection over the constellation graph.
 
-Louvain via networkx (pure Python, already a dependency) rather than Leiden via
+Louvain via networkx (pure Python, declared in pyproject) rather than Leiden via
 leidenalg/igraph: those need a C toolchain this box does not have, and at this graph
 size Louvain with a fixed seed is deterministic, fast, and equally useful for the
 purpose here (visual grouping). Recomputed on demand via kb_recluster, never on write.

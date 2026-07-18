@@ -18,6 +18,7 @@ services:
       GRIMOIRE_OLLAMA_URL: http://host.docker.internal:11434
       GRIMOIRE_EMBED_MODEL: nomic-embed-text
       GRIMOIRE_LLM_MODEL: llama3.2
+      GRIMOIRE_API_TOKEN: ${GRIMOIRE_API_TOKEN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

@@ -8,6 +8,7 @@ write-capable API routes.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -29,42 +30,91 @@ from grimoire.store import Repository
 
 
 def test_gateway_tools_dispatch(tmp_path: Path, monkeypatch):
+    """Every registered kb_* tool dispatches and returns a well-formed payload. The
+    closing registry assertion makes an unsmoke-tested new tool fail loudly."""
     monkeypatch.setattr(settings, "db_path", tmp_path / "g.db")
     from grimoire import gateway
 
-    proj = gateway.kb_upsert_project("Smoke", context_patch="a testing realm")
+    registered = {t.name for t in asyncio.run(gateway.mcp.list_tools())}
+    invoked: set[str] = set()
+
+    def call(name: str, /, *args, **kwargs):
+        invoked.add(name)
+        out = getattr(gateway, name)(*args, **kwargs)
+        assert isinstance(out, (dict, list)), f"{name} returned {type(out).__name__}"
+        return out
+
+    # knowledge layer
+    proj = call("kb_upsert_project", "Smoke", context_patch="a testing realm")
     assert proj["project_id"]
 
-    got = gateway.kb_get_project("Smoke")
+    doc = tmp_path / "doc.md"
+    doc.write_text("# Smoke doc\n\nA body mentioning GRIMOIRE_SMOKE_MARKER.")
+    ingested = call("kb_ingest_document", str(doc), project="Smoke")
+    assert ingested["chunks"] >= 1
+
+    got = call("kb_get_project", "Smoke")
     assert got["title"] == "Smoke" and "linked" in got
 
-    hits = gateway.kb_retrieve("anything", k=3)
-    assert isinstance(hits, list)
-    hits_kw = gateway.kb_retrieve("anything", k=3, mode="keyword")
-    assert isinstance(hits_kw, list)
+    assert isinstance(call("kb_retrieve", "anything", k=3), list)
+    kw = call("kb_retrieve", "GRIMOIRE_SMOKE_MARKER", k=3, mode="keyword")
+    assert isinstance(kw, list) and kw
 
-    mem = gateway.kb_write_memory("Smoke", "we decided things", decisions=["ship it"])
+    mem = call("kb_write_memory", "Smoke", "we decided things", decisions=["ship it"])
     assert mem["node_id"]
 
-    hist = gateway.kb_history(mem["node_id"])
+    hist = call("kb_history", mem["node_id"])
     assert hist["node"]["id"] == mem["node_id"] and isinstance(hist["edges"], list)
 
-    clustered = gateway.kb_recluster()
+    clustered = call("kb_recluster")
     assert set(clustered) == {"communities", "nodes"}
 
-    exported = gateway.kb_export_markdown(str(tmp_path / "vault"))
+    exported = call("kb_export_markdown", str(tmp_path / "vault"))
     assert exported["nodes"] >= 2
 
-    today = gateway.kb_today()
+    missing = call("kb_delete_node", "no-such-node")
+    assert "error" in missing
+
+    # planner layer
+    today = call("kb_today")
     assert {"habits", "quadrants", "goals", "weekly", "estimate"} <= set(today)
 
-    task = gateway.kb_create_task("smoke task", important=True)
+    task = call("kb_create_task", "smoke task", important=True)
     assert task["id"]
-    done = gateway.kb_complete_task(task["id"])
+    modified = call("kb_modify_task", task["id"], {"notes": "smoke note"})
+    assert "error" not in modified
+    done = call("kb_complete_task", task["id"])
     assert done["status"] == "done"
+    scrap = gateway.kb_create_task("throwaway")
+    assert "deleted" in call("kb_delete_task", scrap["id"])
 
-    missing = gateway.kb_delete_node("no-such-node")
-    assert "error" in missing
+    habit = call("kb_create_habit", "smoke habit")
+    assert habit["id"]
+    assert "error" not in call("kb_toggle_habit", habit["id"])
+    weekly = call("kb_weekly_report")
+    assert "habits" in weekly
+    assert "deleted" in call("kb_delete_habit", habit["id"])
+
+    goal = call("kb_create_goal", "smoke goal")
+    assert goal["id"]
+    assert "error" not in call("kb_modify_goal", goal["id"], {"priority": 2})
+    assert "goals" in call("kb_list_goals")
+    assert "deleted" in call("kb_delete_goal", goal["id"])
+
+    assert "tasks" in call("kb_project_tasks", "Smoke")
+
+    anchor = call("kb_add_anchor", "standup", kind="hard", start="09:30", duration_minutes=15)
+    assert "error" not in anchor
+    assert "deleted" in call("kb_delete_anchor", anchor["id"])
+
+    day = datetime.now(timezone.utc).date().isoformat()
+    generated = call("kb_generate_day", f"{day}T07:00:00+00:00", f"{day}T23:00:00+00:00")
+    assert "error" not in generated
+    assert isinstance(call("kb_reflow_day"), dict)
+    assert "recomputed" in call("kb_recompute_urgency")
+
+    untested = registered - invoked
+    assert not untested, f"registered tools without a smoke dispatch: {sorted(untested)}"
 
 
 # ---------------------------------------------------------------------------

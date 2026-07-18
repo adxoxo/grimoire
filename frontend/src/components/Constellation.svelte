@@ -37,7 +37,7 @@
   // Tick budgets: a first-ever layout settles long; adding nodes to a saved layout only
   // re-settles the newcomers (everything saved is pinned during the pass).
   const FULL_TICKS = 300
-  const INCREMENTAL_TICKS = 120
+  const INCREMENTAL_TICKS = 80
 
   let {
     graph,
@@ -89,7 +89,7 @@
   // Focus fade state (render path, non-reactive). Out-of-scope nodes ease to 5% alpha
   // over FADE_MS instead of vanishing, so refocusing reads as spatial movement.
   const FADE_MS = 300
-  const OUT_ALPHA = 0.05
+  const OUT_ALPHA = 0.1
   let focusSet: Set<string> | null = null
   let fadeFrom = new Map<string, number>() // alpha factor per node when the fade began
   let fadeStart = -Infinity
@@ -384,11 +384,19 @@
   }
 
   // ---- lifecycle ----------------------------------------------------------------
-  // Content signature: rebuild only when nodes/edges actually change.
+  // Content signature: rebuild only when nodes/edges/layout actually change. Includes
+  // community_id (so a recluster repaints), edge rel/provenance (so styling never goes
+  // stale), and a cheap fold of the saved layout (so another client's drag applies here
+  // without a full reload).
   const sig = $derived(
-    graph.nodes.map((n) => `${n.id}:${n.status}`).sort().join(',') +
+    graph.nodes.map((n) => `${n.id}:${n.status}:${n.community_id}`).sort().join(',') +
       '|' +
-      graph.edges.map((e) => `${e.src}>${e.dst}`).sort().join(','),
+      graph.edges.map((e) => `${e.src}>${e.dst}:${e.rel}:${e.provenance}`).sort().join(',') +
+      '|' +
+      Object.entries(graph.layout ?? {})
+        .map(([id, p]) => `${id}:${p.x.toFixed(0)}:${p.y.toFixed(0)}:${p.pinned}`)
+        .sort()
+        .join(','),
   )
 
   // Mount: context, halos, fonts, sizing.
@@ -432,10 +440,20 @@
       }
     }
 
-    // Effective saved positions: this session's fresh placements win over the server's.
+    // Effective saved positions: this session's fresh placements win over the server's,
+    // UNLESS the server now has an entry and the cached one was never a drag (pinned) —
+    // in that case the save round-tripped, so the server value wins and the now-stale
+    // cache entry is dropped instead of permanently shadowing the server.
     const saved = new Map<string, { x: number; y: number; pinned: boolean }>()
-    for (const [id, p] of Object.entries(g.layout ?? {})) saved.set(id, p)
-    for (const [id, p] of posMap) saved.set(id, p)
+    const serverLayout = g.layout ?? {}
+    for (const [id, p] of Object.entries(serverLayout)) saved.set(id, p)
+    for (const [id, p] of [...posMap]) {
+      if (serverLayout[id] && !p.pinned) {
+        posMap.delete(id)
+        continue
+      }
+      saved.set(id, p)
+    }
 
     nodes = g.nodes.map((n) => ({ ...n, x: 0, y: 0 })) as SimNode[]
     const byId = new Map(nodes.map((n) => [n.id, n]))
@@ -509,14 +527,18 @@
       for (let i = 0; i < ticks; i++) sim.tick()
       sim.stop()
 
-      // Record every position (anchors and user-pinned leaves stay pinned) and persist.
+      // Persist only nodes without a prior saved position: leaves newly settled this
+      // pass, and anchors placed for the first time. Nodes that already had a saved
+      // entry are left untouched so we never clobber another client's fresher position
+      // (lost-update).
       const batch: { node_id: string; x: number; y: number; pinned: boolean }[] = []
       for (const n of nodes) {
-        const pinned = isAnchor(n) || (saved.get(n.id)?.pinned ?? false)
+        if (saved.has(n.id)) continue
+        const pinned = isAnchor(n)
         posMap.set(n.id, { x: n.x, y: n.y, pinned })
         batch.push({ node_id: n.id, x: n.x, y: n.y, pinned })
       }
-      api.saveLayout(batch).catch(() => {})
+      if (batch.length > 0) api.saveLayout(batch).catch(() => {})
     }
 
     // Release the temporary pins on unpinned leaves so a drag can move them freely.

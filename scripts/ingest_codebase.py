@@ -14,8 +14,9 @@ Extraction engine:
   - If neither is available, this exits with an actionable error explaining both
     options.
 
-Re-running replaces the project's prior codebase docs (matched by the
-"Codebase: " title prefix) so re-ingestion never duplicates.
+Re-running archives the project's prior codebase docs (matched by structured
+provenance in their meta, so re-ingestion never duplicates and never loses the
+prior version -- it's superseded, not deleted).
 
 Usage:
     .venv/bin/python scripts/ingest_codebase.py <repo_path> <project_name> [--graphify-out DIR] [--db PATH]
@@ -99,21 +100,33 @@ def _collect_docs(out_dir: Path) -> list[Path]:
     return docs
 
 
-def _remove_prior_codebase_docs(repo: Repository, project_name: str) -> int:
-    """Delete every existing 'Codebase: ' document linked to this project."""
+def _is_codebase_doc(node: dict) -> bool:
+    """A prior codebase-map ingest is identified by its meta; fall back to the title
+    prefix as a secondary check for docs ingested before this fix existed."""
+    if (node.get("meta") or {}).get("source") == "codebase":
+        return True
+    return (node.get("title") or "").startswith(TITLE_PREFIX)
+
+
+def _archive_prior_codebase_docs(repo: Repository, project_name: str) -> int:
+    """Archive (supersede, don't hard-delete) every existing codebase-map document
+    linked to this project. Skips docs already archived so re-ingest doesn't keep
+    re-archiving an ever-growing list."""
     proj = repo.get_project(project_name)
     if proj is None:
         return 0
-    removed = 0
+    archived = 0
     for linked in proj["linked"]:
-        if linked["type"] != "document" or not linked["title"].startswith(TITLE_PREFIX):
+        if linked["type"] != "document" or linked.get("status") == "archived":
             continue
         node = repo.get_node(linked["id"])
-        if node is None or node["type"] != "document":
-            continue  # confirm before deleting; a title match alone is not enough
-        repo.delete_node(linked["id"])
-        removed += 1
-    return removed
+        if node is None or node["type"] != "document" or node.get("status") == "archived":
+            continue  # confirm before archiving; a title match alone is not enough
+        if not _is_codebase_doc(node):
+            continue
+        repo.archive_node(linked["id"])
+        archived += 1
+    return archived
 
 
 def _ingest_with_provenance(
@@ -126,7 +139,10 @@ def _ingest_with_provenance(
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(provenance + body)
-        return svc.ingest_document(tmp_name, project=project_name, title=title)
+        return svc.ingest_document(
+            tmp_name, project=project_name, title=title,
+            extra_meta={"source": "codebase", "repo": str(repo_path), "commit": commit},
+        )
     finally:
         os.unlink(tmp_name)
 
@@ -169,9 +185,9 @@ def main() -> None:
     provider = get_provider()
     store_repo = Repository(db_path)
     try:
-        removed = _remove_prior_codebase_docs(store_repo, args.project_name)
-        if removed:
-            print(f"removed {removed} prior codebase doc(s) for {args.project_name!r}")
+        archived = _archive_prior_codebase_docs(store_repo, args.project_name)
+        if archived:
+            print(f"archived {archived} prior codebase doc(s) for {args.project_name!r}")
 
         svc = KnowledgeService(store_repo, provider)
         for doc_path in docs:
