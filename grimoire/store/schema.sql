@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   meta TEXT,                      -- JSON, type-specific metadata
   context_summary TEXT,          -- projects: the living summary; others: optional
   community_id INTEGER,          -- Louvain community (kb_recluster); NULL = unclustered
+  valid_from TEXT,               -- bitemporal; NULL is read as created_at
+  invalidated_at TEXT,           -- set when superseded/archived; NULL = current
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -18,6 +20,10 @@ CREATE TABLE IF NOT EXISTS nodes (
 -- Edges: typed links. rel is 'belongs_to' | 'references' | 'mentions' | 'derived_from'.
 -- provenance: 'explicit' (a user/agent tool call) | 'inferred' (auto-linking logic) |
 -- 'ambiguous'. confidence rides alongside (1.0 for explicit) for future auto-linkers.
+-- Bitemporal: severing/superseding sets invalidated_at instead of deleting, so
+-- "what did this link to before" stays answerable (kb_history). Reads default to
+-- invalidated_at IS NULL. valid_from is part of the key so a severed link can be
+-- re-created later as a new row.
 CREATE TABLE IF NOT EXISTS edges (
   src TEXT NOT NULL REFERENCES nodes(id),
   dst TEXT NOT NULL REFERENCES nodes(id),
@@ -25,7 +31,9 @@ CREATE TABLE IF NOT EXISTS edges (
   provenance TEXT NOT NULL DEFAULT 'explicit',
   confidence REAL NOT NULL DEFAULT 1.0,
   created_at TEXT NOT NULL,
-  PRIMARY KEY (src, dst, rel)
+  valid_from TEXT NOT NULL,
+  invalidated_at TEXT,
+  PRIMARY KEY (src, dst, rel, valid_from)
 );
 
 -- Raw memory layer: cheap, never embedded. Audit and replay only.

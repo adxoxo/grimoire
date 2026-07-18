@@ -148,6 +148,17 @@ def kb_ingest_document(path: str, project: str | None = None) -> dict:
 
 
 @mcp.tool
+def kb_history(node_id: str) -> dict:
+    """The bitemporal timeline of a node: every edge it ever had (including severed
+    ones), its validity window, and any compacted summary that superseded it."""
+    with tracer.start_as_current_span("kb_history") as span:
+        span.set_attribute("grimoire.node_id", node_id)
+        with _service() as svc:
+            out = svc.repo.node_history(node_id)
+        return out or {"error": f"node not found: {node_id}"}
+
+
+@mcp.tool
 def kb_recluster() -> dict:
     """Recompute graph communities (Louvain) and persist community ids on nodes.
     Run on demand after the graph has grown, not on every write."""

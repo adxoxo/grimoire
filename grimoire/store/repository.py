@@ -78,8 +78,16 @@ class Repository:
             return {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
 
         with self._conn:
-            if "community_id" not in cols("nodes"):
+            node_cols = cols("nodes")
+            if "community_id" not in node_cols:
                 self._conn.execute("ALTER TABLE nodes ADD COLUMN community_id INTEGER")
+            if "valid_from" not in node_cols:
+                self._conn.execute("ALTER TABLE nodes ADD COLUMN valid_from TEXT")
+                self._conn.execute("ALTER TABLE nodes ADD COLUMN invalidated_at TEXT")
+            # nodes created before (or between) migrations start their validity at creation
+            self._conn.execute(
+                "UPDATE nodes SET valid_from = created_at WHERE valid_from IS NULL"
+            )
             edge_cols = cols("edges")
             if "provenance" not in edge_cols:
                 # existing edges were all created by explicit tool calls; the default backfills them
@@ -90,6 +98,29 @@ class Repository:
                 self._conn.execute(
                     "ALTER TABLE edges ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0"
                 )
+            if "valid_from" not in edge_cols:
+                # Bitemporal validity needs valid_from in the primary key (a severed link
+                # must be re-creatable), and SQLite cannot alter a PK: rebuild the table.
+                self._conn.execute("ALTER TABLE edges RENAME TO edges_old")
+                self._conn.execute(
+                    "CREATE TABLE edges ("
+                    " src TEXT NOT NULL REFERENCES nodes(id),"
+                    " dst TEXT NOT NULL REFERENCES nodes(id),"
+                    " rel TEXT NOT NULL,"
+                    " provenance TEXT NOT NULL DEFAULT 'explicit',"
+                    " confidence REAL NOT NULL DEFAULT 1.0,"
+                    " created_at TEXT NOT NULL,"
+                    " valid_from TEXT NOT NULL,"
+                    " invalidated_at TEXT,"
+                    " PRIMARY KEY (src, dst, rel, valid_from))"
+                )
+                self._conn.execute(
+                    "INSERT INTO edges(src,dst,rel,provenance,confidence,created_at,valid_from,invalidated_at)"
+                    " SELECT src,dst,rel,provenance,confidence,created_at,created_at,NULL FROM edges_old"
+                )
+                self._conn.execute("DROP TABLE edges_old")
+                self._conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_dst ON edges(dst, rel)")
+                self._conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_src ON edges(src, rel)")
 
     def close(self) -> None:
         self._conn.close()
@@ -144,9 +175,10 @@ class Repository:
         return [dict(r) for r in rows]
 
     def list_edges(self) -> list[dict[str, Any]]:
-        """All edges. Used by the constellation graph."""
+        """All currently-valid edges. Used by the constellation graph."""
         rows = self._conn.execute(
             "SELECT src, dst, rel, provenance, confidence FROM edges"
+            " WHERE invalidated_at IS NULL"
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -159,6 +191,36 @@ class Repository:
         return {
             r["node_id"]: {"x": r["x"], "y": r["y"], "pinned": bool(r["pinned"])}
             for r in rows
+        }
+
+    def node_history(self, node_id: str) -> dict[str, Any] | None:
+        """The bitemporal timeline of a node: every edge it ever had (invalidated rows
+        included, oldest first), its own validity window, and what superseded it
+        (compaction summaries link derived_from back to their originals)."""
+        node = self.get_node(node_id)
+        if node is None:
+            return None
+        edges = self._conn.execute(
+            "SELECT src, dst, rel, provenance, confidence, valid_from, invalidated_at"
+            " FROM edges WHERE src = ? OR dst = ? ORDER BY valid_from",
+            (node_id, node_id),
+        ).fetchall()
+        superseded_by = self._conn.execute(
+            "SELECT n.id, n.title, n.created_at FROM edges e JOIN nodes n ON n.id = e.src"
+            " WHERE e.dst = ? AND e.rel = 'derived_from'",
+            (node_id,),
+        ).fetchall()
+        return {
+            "node": {
+                "id": node["id"],
+                "title": node["title"],
+                "type": node["type"],
+                "status": node["status"],
+                "valid_from": node.get("valid_from") or node["created_at"],
+                "invalidated_at": node.get("invalidated_at"),
+            },
+            "edges": [dict(r) for r in edges],
+            "superseded_by": [dict(r) for r in superseded_by],
         }
 
     def set_communities(self, assignment: dict[str, int]) -> int:
@@ -221,17 +283,28 @@ class Repository:
         if provenance not in EDGE_PROVENANCE:
             raise ValueError(f"unknown edge provenance: {provenance!r}")
         with self._conn:
+            # One valid row per (src, dst, rel); invalidated history rows may coexist.
+            exists = self._conn.execute(
+                "SELECT 1 FROM edges WHERE src=? AND dst=? AND rel=? AND invalidated_at IS NULL",
+                (src, dst, rel),
+            ).fetchone()
+            if exists:
+                return
+            now = _now()
             self._conn.execute(
-                "INSERT OR IGNORE INTO edges(src,dst,rel,provenance,confidence,created_at)"
-                " VALUES (?,?,?,?,?,?)",
-                (src, dst, rel, provenance, float(confidence), _now()),
+                "INSERT OR IGNORE INTO edges(src,dst,rel,provenance,confidence,created_at,valid_from)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (src, dst, rel, provenance, float(confidence), now, now),
             )
 
     def unlink_nodes(self, src: str, dst: str, rel: str) -> int:
-        """Sever an edge. Returns rows deleted (0 if it did not exist)."""
+        """Sever an edge: invalidate it rather than delete, so history stays queryable
+        via node_history. Returns rows invalidated (0 if no valid edge existed)."""
         with self._conn:
             cur = self._conn.execute(
-                "DELETE FROM edges WHERE src = ? AND dst = ? AND rel = ?", (src, dst, rel)
+                "UPDATE edges SET invalidated_at = ? WHERE src = ? AND dst = ? AND rel = ?"
+                " AND invalidated_at IS NULL",
+                (_now(), src, dst, rel),
             )
             return cur.rowcount
 
@@ -330,8 +403,8 @@ class Repository:
                 if row is None or row["type"] == "entity":
                     continue  # entity cap: do not traverse out of an entity
                 neighbours = self._conn.execute(
-                    "SELECT dst AS other FROM edges WHERE src = ?"
-                    " UNION SELECT src AS other FROM edges WHERE dst = ?",
+                    "SELECT dst AS other FROM edges WHERE src = ? AND invalidated_at IS NULL"
+                    " UNION SELECT src AS other FROM edges WHERE dst = ? AND invalidated_at IS NULL",
                     (nid, nid),
                 ).fetchall()
                 for r in neighbours:
@@ -388,7 +461,7 @@ class Repository:
             " FROM chunk_vectors cv"
             " JOIN chunks c ON c.id = cv.chunk_id"
             " JOIN nodes n ON n.id = c.node_id"
-            " JOIN edges e ON e.src = n.id AND e.rel = 'belongs_to'"
+            " JOIN edges e ON e.src = n.id AND e.rel = 'belongs_to' AND e.invalidated_at IS NULL"
             " JOIN nodes p ON p.id = e.dst AND p.type = 'project'"
             " GROUP BY p.id ORDER BY distance LIMIT ?",
             (qv, k),
@@ -440,7 +513,7 @@ class Repository:
         linked = self._conn.execute(
             "SELECT n.id, n.type, n.title, n.status, e.rel"
             " FROM edges e JOIN nodes n ON n.id = e.src"
-            " WHERE e.dst = ? ORDER BY n.updated_at DESC",
+            " WHERE e.dst = ? AND e.invalidated_at IS NULL ORDER BY n.updated_at DESC",
             (proj["id"],),
         ).fetchall()
         out = self._node_row_to_dict(proj)
@@ -487,8 +560,8 @@ class Repository:
                  meta, summary, now, now),
             )
             self._conn.execute(
-                "INSERT OR IGNORE INTO edges(src,dst,rel,created_at) VALUES (?,?,?,?)",
-                (mem_id, proj["id"], "belongs_to", now),
+                "INSERT OR IGNORE INTO edges(src,dst,rel,created_at,valid_from) VALUES (?,?,?,?,?)",
+                (mem_id, proj["id"], "belongs_to", now, now),
             )
             for name in entities:
                 ent = self._get_by_type_title("entity", name)
@@ -502,8 +575,8 @@ class Repository:
                 else:
                     ent_id = ent["id"]
                 self._conn.execute(
-                    "INSERT OR IGNORE INTO edges(src,dst,rel,created_at) VALUES (?,?,?,?)",
-                    (mem_id, ent_id, "mentions", now),
+                    "INSERT OR IGNORE INTO edges(src,dst,rel,created_at,valid_from) VALUES (?,?,?,?,?)",
+                    (mem_id, ent_id, "mentions", now, now),
                 )
             if raw_turns:
                 for i, turn in enumerate(raw_turns):
@@ -541,7 +614,8 @@ class Repository:
             "SELECT n.id, n.title, n.status, n.created_at, n.context_summary,"
             " (SELECT c.id FROM chunks c WHERE c.node_id = n.id ORDER BY c.seq LIMIT 1) AS chunk_id"
             " FROM edges e JOIN nodes n ON n.id = e.src"
-            " WHERE e.dst = ? AND e.rel = 'belongs_to' AND n.type = 'memory'"
+            " WHERE e.dst = ? AND e.rel = 'belongs_to' AND e.invalidated_at IS NULL"
+            " AND n.type = 'memory'"
         )
         if not include_archived:
             sql += " AND (n.status IS NULL OR n.status != 'archived')"
@@ -562,9 +636,11 @@ class Repository:
         no longer surfaces in retrieval), keeping the node and its raw turns for audit.
         """
         with self._conn:
+            now = _now()
             self._conn.execute(
-                "UPDATE nodes SET status = 'archived', updated_at = ? WHERE id = ?",
-                (_now(), node_id),
+                "UPDATE nodes SET status = 'archived', updated_at = ?,"
+                " invalidated_at = COALESCE(invalidated_at, ?) WHERE id = ?",
+                (now, now, node_id),
             )
             self._conn.execute(
                 "DELETE FROM chunk_vectors WHERE chunk_id IN (SELECT id FROM chunks WHERE node_id = ?)",
