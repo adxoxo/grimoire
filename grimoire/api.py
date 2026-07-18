@@ -397,5 +397,10 @@ if _DIST.exists():
 
     @app.get("/{full_path:path}")
     def spa(full_path: str) -> FileResponse:
-        """SPA fallback: any non-API path returns index.html for client-side routing."""
-        return FileResponse(_DIST / "index.html")
+        """SPA fallback: any non-API path returns index.html for client-side routing.
+        no-cache so a deploy reaches the browser on the next load: the shell must be
+        revalidated every time, while the hashed /assets bundles stay cacheable."""
+        return FileResponse(
+            _DIST / "index.html",
+            headers={"cache-control": "no-cache, must-revalidate"},
+        )

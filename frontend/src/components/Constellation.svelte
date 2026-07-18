@@ -461,11 +461,14 @@
 
     nodes = g.nodes.map((n) => ({ ...n, x: 0, y: 0 })) as SimNode[]
     const byId = new Map(nodes.map((n) => [n.id, n]))
+    // Resolve endpoints to node objects HERE, never via forceLink: on a fully-restored
+    // load the simulation does not run, and string endpoints would crash the draw loop
+    // (RUNE[undefined]) leaving the canvas blank.
     links = g.edges
       .filter((e) => byId.has(e.src) && byId.has(e.dst))
       .map((e) => ({
-        source: e.src as unknown as SimNode,
-        target: e.dst as unknown as SimNode,
+        source: byId.get(e.src)!,
+        target: byId.get(e.dst)!,
         rel: e.rel,
         inferred: e.provenance != null && e.provenance !== 'explicit',
       }))
@@ -585,7 +588,9 @@
     const pad = 90
     const bw = Math.max(maxX - minX, 200) + pad * 2
     const bh = Math.max(maxY - minY, 200) + pad * 2
-    const tk = Math.min(1.5, Math.max(0.1, Math.min(cssW / bw, cssH / bh)))
+    // Zoom floor 0.02, well below the wheel's 0.1: fit must be able to frame ANY
+    // layout, including a degenerate persisted one, or the graph reads as blank.
+    const tk = Math.min(1.5, Math.max(0.02, Math.min(cssW / bw, cssH / bh)))
     const mx = (minX + maxX) / 2
     const my = (minY + maxY) / 2
     const tx = cssW / 2 - tk * mx
