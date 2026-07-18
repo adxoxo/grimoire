@@ -79,6 +79,14 @@ class NewTask(BaseModel):
     project_id: str | None = None
 
 
+@router.get("/tasks")
+def list_tasks(status: str = "open") -> dict:
+    """Flat task list by status ('open' | 'done'). The Flow day list filters it by due
+    date client-side."""
+    with _repo() as repo:
+        return {"tasks": repo.list_tasks(status=status)}
+
+
 @router.post("/tasks")
 def create_task(body: NewTask) -> dict:
     with _repo() as repo:

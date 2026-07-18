@@ -10,7 +10,11 @@
   import PlannerChat from '../components/planner/PlannerChat.svelte'
   import AddItemDialog from '../components/planner/AddItemDialog.svelte'
 
-  const date = localDate()
+  const today = localDate()
+  // The day being viewed/planned. Every operation (plan, anchors, to-dos, generate)
+  // is scoped to it; the strip below switches between days.
+  let date = $state(localDate())
+  let weekOffset = $state(0)
 
   // Slot double-clicked on the timeline -> the ISO start for the create modal (null = closed).
   let createAt = $state<string | null>(null)
@@ -18,12 +22,27 @@
   let flow = $state<FlowData | null>(null)
   let result = $state<PlanResult | null>(null)
   let blocks = $state<Block[]>([])
+  let dayTasks = $state<Task[]>([])
+  let newTask = $state('')
   let wake = $state('08:00')
   let sleep = $state('23:00')
   let busy = $state(false)
   let interacting = $state(false)
   let error = $state<string | null>(null)
-  let seeded = false
+  let seededFor = ''
+
+  function addDays(d: string, n: number): string {
+    const dt = new Date(`${d}T00:00:00`)
+    dt.setDate(dt.getDate() + n)
+    return localDate(dt)
+  }
+  const strip = $derived(Array.from({ length: 7 }, (_, i) => addDays(today, i - 3 + weekOffset * 7)))
+  const dayLabel = $derived.by(() => {
+    if (date === today) return 'today'
+    if (date === addDays(today, -1)) return 'yesterday'
+    if (date === addDays(today, 1)) return 'tomorrow'
+    return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+  })
 
   function combine(d: string, hhmm: string): Date {
     const [h, m] = hhmm.split(':').map(Number)
@@ -38,18 +57,59 @@
   }
 
   function load() {
-    planner.flow(date).then((f) => {
+    const d = date
+    planner.flow(d).then((f) => {
       flow = f
       blocks = f.plan?.blocks ?? []
-      if (f.plan && !seeded) {
+      if (f.plan && seededFor !== d) {
         wake = hhmmFromIso(f.plan.wake_time, '08:00')
         sleep = hhmmFromIso(f.plan.sleep_target, '23:00')
-        seeded = true
+        seededFor = d
       }
     }).catch((e) => (error = String(e)))
+    loadDayTasks()
   }
   $effect(load)
   liveRefresh(load, { enabled: () => !interacting && !busy, intervalMs: 15000 })
+
+  // The day's to-do list: everything due on the viewed date, open first. This is the
+  // planning surface - list things onto a day, then generate its timetable.
+  function loadDayTasks() {
+    const d = date
+    Promise.all([planner.tasks('open'), planner.tasks('done')])
+      .then(([open, done]) => {
+        dayTasks = [...open.tasks, ...done.tasks]
+          .filter((t) => (t.due ?? '').slice(0, 10) === d)
+          .sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0))
+      })
+      .catch(() => {})
+  }
+
+  async function addDayTask() {
+    let title = newTask.trim()
+    if (!title) return
+    newTask = ''
+    // Untimed tasks defer to the pool instead of scheduling, so day-listed items get a
+    // 30m default; a trailing "45m" or "1.5h" in the text sets the estimate instead.
+    let estimate = 30
+    const m = title.match(/\s+(\d+(?:\.\d+)?)\s*(m|min|h|hr)s?$/i)
+    if (m) {
+      estimate = Math.round(parseFloat(m[1]) * (m[2].toLowerCase().startsWith('h') ? 60 : 1))
+      title = title.slice(0, m.index).trim()
+    }
+    await planner.createTask({ title, due: date, estimate_minutes: estimate })
+    loadDayTasks()
+  }
+
+  async function toggleDayTask(t: Task) {
+    await planner.completeTask(t.id, t.status !== 'done')
+    loadDayTasks()
+  }
+
+  async function removeDayTask(t: Task) {
+    await planner.deleteTask(t.id)
+    loadDayTasks()
+  }
 
   function saveBlocks(next: Block[]) {
     blocks = next
@@ -103,12 +163,14 @@
       if (s <= w) s = new Date(s.getTime() + 86400000)
       const r = await planner.generateDay({
         date, wake_time: w.toISOString(), sleep_target: s.toISOString(),
-        now: new Date().toISOString(),
+        // Clamp to the present only when planning today; another day gets its full window.
+        now: date === today ? new Date().toISOString() : undefined,
         if_enabled: flow?.plan?.if_enabled, first_meal: flow?.plan?.first_meal ?? undefined,
         eating_hours: flow?.plan?.eating_hours,
       })
       result = r
       blocks = r.blocks
+      load() // refresh the persisted plan so the timeline appears on a first generate
     } catch (e) {
       error = String(e)
     } finally {
@@ -152,6 +214,41 @@
 
 <main class="min-h-screen pb-48 overflow-y-auto">
   <div class="max-w-[1200px] mx-auto px-6 md:px-margin py-lg mt-4 md:mt-8">
+    <!-- day strip: switch between days; each keeps its own plan, anchors, and to-dos -->
+    <div class="flex items-center justify-center gap-1.5 mb-md flex-wrap">
+      <button onclick={() => weekOffset--} aria-label="Earlier days"
+        class="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:text-on-surface hover:bg-bg-surface transition-colors">
+        <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+      </button>
+      {#each strip as d (d)}
+        {@const selected = date === d}
+        {@const dt = new Date(`${d}T00:00:00`)}
+        <button
+          onclick={() => (date = d)}
+          aria-pressed={selected}
+          class="w-12 py-1.5 rounded-lg flex flex-col items-center gap-0.5 border transition-colors {selected
+            ? 'border-rune-quest/60 bg-rune-quest/10'
+            : 'border-transparent hover:bg-bg-surface'}"
+        >
+          <span class="font-label-md text-[10px] uppercase tracking-wider {selected ? 'text-rune-quest' : 'text-text-tertiary'}">
+            {dt.toLocaleDateString(undefined, { weekday: 'short' })}
+          </span>
+          <span class="font-headline-sm text-headline-sm leading-none {selected ? 'text-primary' : 'text-text-muted'}">{dt.getDate()}</span>
+          <span class="w-1 h-1 rounded-full {d === today ? 'bg-rune-quest' : 'bg-transparent'}"></span>
+        </button>
+      {/each}
+      <button onclick={() => weekOffset++} aria-label="Later days"
+        class="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:text-on-surface hover:bg-bg-surface transition-colors">
+        <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+      </button>
+      {#if date !== today}
+        <button onclick={() => { date = today; weekOffset = 0 }}
+          class="ml-2 px-3 py-1.5 rounded-full border border-border-default font-label-md text-label-md text-text-muted hover:text-rune-quest hover:border-rune-quest/50 transition-colors">
+          Today
+        </button>
+      {/if}
+    </div>
+
     <!-- day setup bar -->
     <div class="grimoire-card rounded-xl p-4 flex flex-wrap items-center gap-4 md:gap-6 mb-lg">
       <div>
@@ -170,11 +267,11 @@
         </div>
       </div>
       <div class="flex-1"></div>
-      <button onclick={reflow} disabled={busy} class="flex items-center gap-2 py-2 px-4 border border-border-default rounded text-on-surface hover:border-rune-entity/60 transition-colors font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">
+      <button onclick={reflow} disabled={busy || date !== today} title={date !== today ? 'Reflow applies to today only' : undefined} class="flex items-center gap-2 py-2 px-4 border border-border-default rounded text-on-surface hover:border-rune-entity/60 transition-colors font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">
         <span class="material-symbols-outlined text-[18px]">refresh</span>Reflow from now
       </button>
       <button onclick={generate} disabled={busy} class="flex items-center gap-2 py-2 px-5 bg-rune-entity/20 text-rune-entity border border-rune-entity/50 rounded hover:bg-rune-entity hover:text-bg-page transition-all font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">
-        <span class="material-symbols-outlined text-[18px]">auto_awesome</span>{busy ? 'Weaving...' : 'Generate my day'}
+        <span class="material-symbols-outlined text-[18px]">auto_awesome</span>{busy ? 'Weaving...' : `Generate ${dayLabel}`}
       </button>
     </div>
 
@@ -203,6 +300,48 @@
       <!-- intentions panel -->
       <aside class="lg:w-80 shrink-0 space-y-md">
         <h2 class="font-headline-md text-headline-md text-primary flex items-center gap-2">Intentions</h2>
+
+        <!-- the day's to-do list: list things onto a day, then generate its timetable -->
+        <div class="grimoire-card rounded-lg p-3">
+          <div class="flex justify-between items-baseline mb-2">
+            <h4 class="font-label-md text-label-md text-text-muted uppercase tracking-widest">To do {dayLabel}</h4>
+            <span class="font-label-md text-label-md text-text-tertiary">{dayTasks.filter((t) => t.status !== 'done').length} open</span>
+          </div>
+          <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
+            {#if dayTasks.length === 0}
+              <p class="font-body-sm text-body-sm text-text-tertiary py-1">Nothing listed for this day yet.</p>
+            {/if}
+            {#each dayTasks as t (t.id)}
+              {@const done = t.status === 'done'}
+              <div class="flex items-center gap-2.5 py-1.5 px-1 rounded hover:bg-bg-surface/60 transition-colors group">
+                <button
+                  onclick={() => toggleDayTask(t)}
+                  aria-label={done ? `Reopen ${t.title}` : `Complete ${t.title}`}
+                  class="w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center transition-colors {done
+                    ? 'border-rune-quest bg-rune-quest/20'
+                    : 'border-border-default hover:border-rune-quest'}"
+                >
+                  {#if done}<span class="material-symbols-outlined text-[12px] text-rune-quest">check</span>{/if}
+                </button>
+                <span class="flex-1 min-w-0 truncate font-body-sm text-body-sm {done ? 'text-text-tertiary line-through' : 'text-on-surface'}">{t.title}</span>
+                {#if t.estimate_minutes}
+                  <span class="font-label-md text-[10px] text-text-tertiary shrink-0">{t.estimate_minutes}m</span>
+                {/if}
+                <button
+                  onclick={() => removeDayTask(t)}
+                  aria-label="Delete task"
+                  class="material-symbols-outlined text-[14px] text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-status-error transition-all shrink-0"
+                >delete</button>
+              </div>
+            {/each}
+          </div>
+          <input
+            bind:value={newTask}
+            onkeydown={(e) => e.key === 'Enter' && addDayTask()}
+            placeholder="Add for {dayLabel}..."
+            class="mt-2 w-full bg-bg-page border border-border-subtle rounded px-2.5 py-1.5 font-body-sm text-body-sm text-on-surface placeholder:text-text-tertiary outline-none focus:border-rune-quest/60 transition-colors"
+          />
+        </div>
 
         {#if notice}
           <div transition:fly={{ y: 8, duration: dur(220), easing: quintOut }} class="bg-rune-chronicle/5 border border-rune-chronicle/30 rounded-lg p-3">

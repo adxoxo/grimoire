@@ -335,6 +335,12 @@ def _gather(repo: PlannerRepository, date_str: str) -> dict:
     habit_list = [h for h in habits_mod.habit_view(repo, today=today)
                   if not _habit_done(h, date_str)]
     by_q = list_tasks_by_quadrant(repo)
+    # Tasks deliberately planned for THIS day (due == date) go first within their
+    # quadrant, so "list tomorrow's to-dos tonight, generate tomorrow" fills the day
+    # with what was planned before topping up from the general pool.
+    day = date_str[:10]
+    for tasks in by_q.values():
+        tasks.sort(key=lambda t: 0 if (t.get("due") or "")[:10] == day else 1)
     goal_floor = _pick_goal_floor(repo)
     return {"hard": hard, "soft": soft, "habits": habit_list, "by_q": by_q, "goal_floor": goal_floor}
 

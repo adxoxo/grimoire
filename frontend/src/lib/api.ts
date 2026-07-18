@@ -379,6 +379,7 @@ export const planner = {
   today: (date?: string) => get<TodayData>(`/api/planner/today${q({ date })}`),
   weeklyReport: (date?: string) => get<WeeklyReport>(`/api/planner/weekly-report${q({ date })}`),
 
+  tasks: (status = 'open') => get<{ tasks: Task[] }>(`/api/planner/tasks${q({ status })}`),
   createTask: (body: TaskInput) => post<Task>('/api/planner/tasks', body),
   modifyTask: (id: string, body: Partial<TaskInput>) => patch<Task>(`/api/planner/tasks/${id}`, body),
   completeTask: (id: string, done = true) =>
