@@ -35,6 +35,37 @@ from grimoire.store import Repository
 
 app = FastAPI(title="The Grimoire", version="0.1.0")
 
+
+class _WriteAuthASGI:
+    """Require `Authorization: Bearer <token>` on write-capable /api routes when
+    GRIMOIRE_API_TOKEN is set. Read routes stay open (they get gated with the public
+    exposure work). Pure ASGI, same pattern as the MCP gateway's guard; the token is
+    read per-request so tests can toggle it without re-importing the app."""
+
+    _OPEN_METHODS = ("GET", "HEAD", "OPTIONS")
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        token = settings.api_token
+        if (
+            token
+            and scope.get("type") == "http"
+            and scope.get("method") not in self._OPEN_METHODS
+            and scope.get("path", "").startswith("/api/")
+        ):
+            headers = dict(scope.get("headers") or [])
+            if headers.get(b"authorization", b"").decode() != f"Bearer {token}":
+                await send({"type": "http.response.start", "status": 401,
+                            "headers": [(b"content-type", b"application/json")]})
+                await send({"type": "http.response.body", "body": b'{"detail":"unauthorized"}'})
+                return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(_WriteAuthASGI)
+
 # The dashboard runs on the Vite dev server during development.
 # localhost dev origins, plus any public dashboard origin(s) from config.
 _cors_origins = ["http://localhost:5173", "http://127.0.0.1:5173"] + [
@@ -60,6 +91,13 @@ app.router.routes.extend(planner_router.routes)
 # lazily on the first search, so this stays cheap at startup.
 _provider = get_provider()
 _reranker = get_reranker(settings.rerank_enabled, settings.rerank_model)
+
+# Fail loudly at startup when the configured Ollama is unreachable: broken embeddings
+# must never degrade silently. Only the real provider is checked; fake stays offline.
+if settings.provider == "ollama":
+    from grimoire.providers.ollama import verify_reachable
+
+    verify_reachable(settings.ollama_url)
 
 
 @contextmanager

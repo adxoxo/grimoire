@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { api } from '../lib/api'
+  import { API_TOKEN_KEY, api } from '../lib/api'
   import { link } from '../lib/router.svelte'
   import { refreshGraph } from '../lib/appstate.svelte'
 
@@ -50,6 +50,15 @@
   let running = $state<string | null>(null)
   let results = $state<Record<string, string>>({})
 
+  // Bearer token for write routes (matches the server's GRIMOIRE_API_TOKEN). Stored
+  // locally; empty when the server runs unguarded.
+  let apiToken = $state(localStorage.getItem(API_TOKEN_KEY) ?? '')
+
+  function saveToken() {
+    if (apiToken.trim()) localStorage.setItem(API_TOKEN_KEY, apiToken.trim())
+    else localStorage.removeItem(API_TOKEN_KEY)
+  }
+
   async function trigger(job: Job) {
     running = job.key
     results = { ...results, [job.key]: '' }
@@ -98,5 +107,22 @@
         </button>
       </section>
     {/each}
+
+    <section class="grimoire-card rounded-lg p-5 flex items-start gap-4">
+      <span class="material-symbols-outlined text-rune-quest text-[24px] mt-1">key</span>
+      <div class="flex-1 min-w-0">
+        <h2 class="font-headline-sm text-headline-sm text-primary">API token</h2>
+        <p class="font-body-sm text-body-sm text-text-muted mt-1">
+          Sent as a bearer token on writes. Required once the server sets GRIMOIRE_API_TOKEN; leave empty for an unguarded local server.
+        </p>
+        <input
+          type="password"
+          bind:value={apiToken}
+          onblur={saveToken}
+          placeholder="Paste the token"
+          class="mt-3 w-full max-w-sm bg-bg-page border border-border-default rounded px-3 py-2 font-body-sm text-body-sm text-on-surface outline-none focus:border-rune-quest"
+        />
+      </div>
+    </section>
   </div>
 </div>

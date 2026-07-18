@@ -89,41 +89,29 @@ async function get<T>(url: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function post<T>(url: string, body?: unknown): Promise<T> {
+// Write routes are bearer-guarded once GRIMOIRE_API_TOKEN is set server-side; the
+// token lives in localStorage (set it in Settings) and rides along on every write.
+export const API_TOKEN_KEY = 'grimoire-api-token'
+
+function authHeaders(): Record<string, string> {
+  const t = localStorage.getItem(API_TOKEN_KEY)
+  return t ? { authorization: `Bearer ${t}` } : {}
+}
+
+async function write<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
-    method: 'POST',
-    headers: body ? { 'content-type': 'application/json' } : undefined,
+    method,
+    headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...authHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   return res.json() as Promise<T>
 }
 
-async function del<T>(url: string): Promise<T> {
-  const res = await fetch(url, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  return res.json() as Promise<T>
-}
-
-async function patch<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: body ? { 'content-type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  return res.json() as Promise<T>
-}
-
-async function put<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers: body ? { 'content-type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  return res.json() as Promise<T>
-}
+const post = <T,>(url: string, body?: unknown) => write<T>('POST', url, body)
+const del = <T,>(url: string) => write<T>('DELETE', url)
+const patch = <T,>(url: string, body?: unknown) => write<T>('PATCH', url, body)
+const put = <T,>(url: string, body?: unknown) => write<T>('PUT', url, body)
 
 export interface NewNode {
   type: 'project' | 'entity' | 'document'
@@ -152,7 +140,7 @@ export const api = {
     const fd = new FormData()
     for (const f of files) fd.append('files', f)
     if (project) fd.append('project', project)
-    const res = await fetch('/api/ingest', { method: 'POST', body: fd })
+    const res = await fetch('/api/ingest', { method: 'POST', headers: authHeaders(), body: fd })
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
     return res.json() as Promise<{
       project: string | null
