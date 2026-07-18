@@ -61,6 +61,29 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunk_vectors USING vec0(
   embedding float[768]
 );
 
+-- Keyword index (FTS5, external content over chunks): the BM25 leg of hybrid
+-- retrieval. Vector search is weak on exact identifiers (env vars, ports, names);
+-- this leg catches them. Kept in sync by the triggers below; backfilled by the
+-- repository migration for stores that predate it.
+CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(
+  content,
+  content=chunks,
+  content_rowid=rowid
+);
+
+CREATE TRIGGER IF NOT EXISTS chunks_fts_insert AFTER INSERT ON chunks BEGIN
+  INSERT INTO chunk_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS chunks_fts_delete AFTER DELETE ON chunks BEGIN
+  INSERT INTO chunk_fts(chunk_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS chunks_fts_update AFTER UPDATE ON chunks BEGIN
+  INSERT INTO chunk_fts(chunk_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+  INSERT INTO chunk_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
+
 -- Persisted constellation layout (fixed anchors + settled, frozen leaves).
 -- One row per node that has a placed position. `pinned` = the user (or the anchor rule)
 -- fixed it; the force simulation must never move it. Absent row = not yet laid out.

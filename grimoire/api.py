@@ -170,13 +170,14 @@ def document(node_id: str) -> dict:
 
 
 @app.get("/api/search")
-def search(q: str, project: str | None = None, k: int = 10) -> dict:
-    """Full retrieve path: graph-narrow (optional project) then similarity x recency.
-    Requires the embedding provider (Ollama) to be reachable."""
+def search(q: str, project: str | None = None, k: int = 10, mode: str = "hybrid") -> dict:
+    """Full retrieve path: graph-narrow (optional project) then hybrid BM25 + vector
+    fusion (or 'vector' / 'keyword' via mode). Vector legs need the embedding provider
+    (Ollama) reachable; keyword mode works without it."""
     with _repo() as repo:
         try:
             hits = KnowledgeService(repo, _provider, _reranker).retrieve(
-                q, project=project, k=k, rerank_candidates=settings.rerank_candidates,
+                q, project=project, k=k, rerank_candidates=settings.rerank_candidates, mode=mode,
             )
         except Exception as exc:  # noqa: BLE001 - surfaced to the client as 503
             raise HTTPException(

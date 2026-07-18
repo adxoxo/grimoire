@@ -53,13 +53,16 @@ def _service() -> Iterator[KnowledgeService]:
 
 
 @mcp.tool
-def kb_retrieve(query: str, project: str | None = None, k: int = 10) -> list[dict]:
-    """Retrieve the most relevant chunks for a query, optionally narrowed to a project."""
+def kb_retrieve(query: str, project: str | None = None, k: int = 10, mode: str = "hybrid") -> list[dict]:
+    """Retrieve the most relevant chunks for a query, optionally narrowed to a project.
+    mode: 'hybrid' (BM25 + vector fused with RRF, the default) | 'vector' | 'keyword'."""
     with tracer.start_as_current_span("kb_retrieve") as span:
         span.set_attribute("grimoire.project", project or "")
         span.set_attribute("grimoire.k", k)
+        span.set_attribute("grimoire.mode", mode)
         with _service() as svc:
-            hits = svc.retrieve(query, project=project, k=k, rerank_candidates=settings.rerank_candidates)
+            hits = svc.retrieve(query, project=project, k=k,
+                                rerank_candidates=settings.rerank_candidates, mode=mode)
         span.set_attribute("grimoire.candidate_chunks", len(hits))
         return [
             {

@@ -121,6 +121,14 @@ class Repository:
                 self._conn.execute("DROP TABLE edges_old")
                 self._conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_dst ON edges(dst, rel)")
                 self._conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_src ON edges(src, rel)")
+            # FTS backfill: stores that predate the keyword index (its triggers only see
+            # writes made after they exist) get a one-time rebuild from the chunks table.
+            # count(*) on an external-content fts5 table scans the CONTENT table, so the
+            # indexed-row count must come from the docsize shadow table instead.
+            fts_count = self._conn.execute("SELECT count(*) FROM chunk_fts_docsize").fetchone()[0]
+            chunk_count = self._conn.execute("SELECT count(*) FROM chunks").fetchone()[0]
+            if fts_count != chunk_count:
+                self._conn.execute("INSERT INTO chunk_fts(chunk_fts) VALUES ('rebuild')")
 
     def close(self) -> None:
         self._conn.close()
@@ -383,6 +391,34 @@ class Repository:
                 "updated_at": meta["updated_at"],
             })
         return results
+
+    def keyword_chunks(
+        self, query: str, node_ids: list[str] | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """BM25 keyword search over chunk text (the FTS5 leg of hybrid retrieval),
+        best match first. node_ids restricts to those nodes' chunks, mirroring
+        scored_chunks. Free-form input is quoted term-by-term so FTS5 operators in a
+        natural-language query cannot break the match expression."""
+        terms = ['"' + t.replace('"', '') + '"' for t in query.split() if t.replace('"', '')]
+        if not terms:
+            return []
+        base = (
+            "SELECT c.id AS chunk_id, c.node_id, c.content,"
+            " n.title, n.type, n.status, n.updated_at, bm25(chunk_fts) AS keyword_rank"
+            " FROM chunk_fts f"
+            " JOIN chunks c ON c.rowid = f.rowid"
+            " JOIN nodes n ON n.id = c.node_id"
+            " WHERE chunk_fts MATCH ?"
+        )
+        params: list[Any] = [" OR ".join(terms)]
+        if node_ids is not None:
+            if not node_ids:
+                return []
+            base += f" AND c.node_id IN ({','.join('?' * len(node_ids))})"
+            params.extend(node_ids)
+        base += " ORDER BY rank LIMIT ?"
+        params.append(limit)
+        return [dict(r) for r in self._conn.execute(base, params).fetchall()]
 
     # ---- traversal for the read path ------------------------------------
 

@@ -19,6 +19,8 @@ from grimoire.rerank import Reranker
 from grimoire.store import Repository
 
 HALF_LIFE_DAYS = 90.0
+# Reciprocal rank fusion constant for hybrid retrieval (the standard k=60).
+RRF_K = 60
 # ~500 tokens at ~4 chars/token, with a small overlap. Tune later.
 CHUNK_CHARS = 2000
 CHUNK_OVERLAP = 200
@@ -111,29 +113,60 @@ class KnowledgeService:
         project: str | None = None,
         k: int = 10,
         rerank_candidates: int = 25,
+        mode: str = "hybrid",
     ) -> list[dict]:
-        """Graph-narrow, vector-search, score = similarity x recency decay, then (if a
-        re-ranker is configured) a local cross-encoder re-rank of the top candidates.
+        """Graph-narrow, then search by `mode`, then (if a re-ranker is configured) a
+        local cross-encoder re-rank of the top candidates.
+
+        Modes: 'hybrid' (default) fuses BM25 keyword search with vector search via
+        reciprocal rank fusion (k=60) and applies recency decay after fusion — vector
+        recall plus exact-identifier precision. 'vector' is the pure bi-encoder path
+        (similarity x recency, the pre-hybrid behaviour). 'keyword' is BM25 only and
+        needs no embedding provider at all.
 
         With a project, candidates are narrowed to its 1-2 hop neighbourhood (entity cap
         applied in the repository) before scoring. Without one, all chunks score. The
         re-rank is best-effort: if the model is unavailable it falls back to the score
         order, so retrieval never depends on the re-ranker being loadable.
         """
-        q_emb = self.provider.embed_query(query)
+        if mode not in ("hybrid", "vector", "keyword"):
+            raise ValueError(f"unknown retrieval mode: {mode!r}")
         node_ids = None
         if project:
             proj = self.repo.get_project(project)
             if proj is None:
                 return []
             node_ids = self.repo.candidate_node_ids(proj["id"])
-        rows = self.repo.scored_chunks(q_emb, node_ids=node_ids)
         now = datetime.now(timezone.utc)
-        scored = []
-        for r in rows:
-            similarity = 1.0 - float(r["distance"])  # cosine distance -> similarity
-            score = similarity * recency_decay(r["updated_at"], now)
-            scored.append({**r, "similarity": similarity, "score": score})
+
+        if mode == "vector":
+            rows = self.repo.scored_chunks(self.provider.embed_query(query), node_ids=node_ids)
+            scored = []
+            for r in rows:
+                similarity = 1.0 - float(r["distance"])  # cosine distance -> similarity
+                score = similarity * recency_decay(r["updated_at"], now)
+                scored.append({**r, "similarity": similarity, "score": score})
+        elif mode == "keyword":
+            rows = self.repo.keyword_chunks(query, node_ids=node_ids)
+            scored = [
+                {**r, "score": 1.0 / (RRF_K + rank + 1) * recency_decay(r["updated_at"], now)}
+                for rank, r in enumerate(rows)
+            ]
+        else:  # hybrid: RRF-fuse both legs, recency decay after fusion
+            vec_rows = self.repo.scored_chunks(self.provider.embed_query(query), node_ids=node_ids)
+            kw_rows = self.repo.keyword_chunks(query, node_ids=node_ids)
+            fused: dict[str, dict] = {}
+            for leg in (vec_rows[:100], kw_rows):
+                for rank, r in enumerate(leg):
+                    entry = fused.setdefault(r["chunk_id"], {**r, "rrf": 0.0})
+                    entry["rrf"] += 1.0 / (RRF_K + rank + 1)
+            scored = []
+            for r in fused.values():
+                score = r.pop("rrf") * recency_decay(r["updated_at"], now)
+                if "distance" in r:
+                    r["similarity"] = 1.0 - float(r["distance"])
+                scored.append({**r, "score": score})
+
         scored.sort(key=lambda x: x["score"], reverse=True)
         if self.reranker is not None and len(scored) > 1:
             return self._rerank(query, scored[:rerank_candidates])[:k]
