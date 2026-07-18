@@ -18,8 +18,72 @@
   let query = $state('')
   let hidden = $state<Set<NodeType>>(new Set())
   let showFilter = $state(false)
+  // Focus mode: the default view is one node's local neighbourhood, not the whole
+  // hairball. The global view stays behind the "All" toggle.
+  let mode = $state<'focus' | 'all'>('focus')
+  let focusId = $state<string | null>(null)
+  let depth = $state(1)
 
   const highlightType = $derived((router.query.type as NodeType | undefined) ?? null)
+
+  // Land on the most recently active quest line's local view (nodes arrive ordered by
+  // updated_at DESC). If the focused node vanished (deleted), refocus the same way.
+  $effect(() => {
+    if (!graph) return
+    if (focusId && graph.nodes.some((n) => n.id === focusId)) return
+    const recent = graph.nodes.find((n) => n.type === 'project')
+    if (recent) {
+      focusId = recent.id
+    } else {
+      focusId = null
+      mode = 'all'
+    }
+  })
+
+  // The focus neighbourhood: BFS out to `depth` hops, undirected, with the same entity
+  // supernode cap as retrieval, so a shared rune never bridges unrelated clusters
+  // (unless it is itself the focus).
+  const focusIds = $derived.by(() => {
+    if (mode !== 'focus' || !focusId || !graph) return null
+    const typeById = new Map(graph.nodes.map((n) => [n.id, n.type]))
+    const adj = new Map<string, string[]>()
+    const add = (a: string, b: string) => {
+      const list = adj.get(a)
+      if (list) list.push(b)
+      else adj.set(a, [b])
+    }
+    for (const e of graph.edges) {
+      add(e.src, e.dst)
+      add(e.dst, e.src)
+    }
+    const seen = new Set<string>([focusId])
+    let frontier = [focusId]
+    for (let d = 0; d < depth; d++) {
+      const next: string[] = []
+      for (const id of frontier) {
+        if (id !== focusId && typeById.get(id) === 'entity') continue
+        for (const nb of adj.get(id) ?? []) {
+          if (!seen.has(nb)) {
+            seen.add(nb)
+            next.push(nb)
+          }
+        }
+      }
+      frontier = next
+    }
+    return seen
+  })
+
+  const focusTitle = $derived(
+    focusId && graph ? (graph.nodes.find((n) => n.id === focusId)?.title ?? null) : null,
+  )
+
+  // Clicking a node opens its panel and, in focus mode, recenters the local view on it
+  // (the Obsidian local-graph behaviour).
+  function handleSelect(node: GraphNode) {
+    selected = node
+    if (mode === 'focus') focusId = node.id
+  }
 
   // Refetch on first mount and whenever a write bumps the graph version.
   $effect(() => {
@@ -124,7 +188,41 @@
   </div>
 
   {#if graph && graph.nodes.length > 0}
-    <Constellation {graph} selectedId={selected?.id ?? null} {highlightType} filterText={query} hiddenTypes={hidden} onSelect={(n) => (selected = n)} />
+    <Constellation
+      {graph}
+      selectedId={selected?.id ?? null}
+      {highlightType}
+      filterText={query}
+      hiddenTypes={hidden}
+      {focusIds}
+      focusCenterId={mode === 'focus' ? focusId : null}
+      onSelect={handleSelect}
+    />
+
+    <!-- Focus controls: local view vs the whole constellation, plus hop depth -->
+    <div class="absolute bottom-6 left-6 z-30 flex items-center gap-3 bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-lg px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+      <div class="flex rounded-md overflow-hidden border border-border-default">
+        {#each ['focus', 'all'] as const as m (m)}
+          <button
+            onclick={() => (mode = m)}
+            class="px-3 py-1 font-label-md text-label-md transition-colors"
+            style="background:{mode === m ? 'rgba(212,169,63,0.14)' : 'transparent'};color:{mode === m ? '#e3d3a0' : '#6b6789'}"
+          >
+            {m === 'focus' ? 'Focus' : 'All'}
+          </button>
+        {/each}
+      </div>
+      {#if mode === 'focus'}
+        <label class="flex items-center gap-2 font-label-md text-label-md text-text-muted">
+          Depth
+          <input type="range" min="1" max="3" step="1" bind:value={depth} class="w-20" style="accent-color:#d4a93f" />
+          <span class="text-on-surface w-3 text-center">{depth}</span>
+        </label>
+        {#if focusTitle}
+          <span class="font-body-sm text-body-sm text-text-tertiary max-w-44 truncate">{focusTitle}</span>
+        {/if}
+      {/if}
+    </div>
   {/if}
 
   {#if selected}

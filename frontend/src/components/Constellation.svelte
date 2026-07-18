@@ -44,6 +44,8 @@
     highlightType,
     filterText = '',
     hiddenTypes,
+    focusIds = null,
+    focusCenterId = null,
     onSelect,
   }: {
     graph: Graph
@@ -51,6 +53,11 @@
     highlightType: NodeType | null
     filterText?: string
     hiddenTypes?: Set<NodeType>
+    // Focus mode: when set, only these ids render at full strength; the rest fade to
+    // near-invisible (and stop taking clicks) instead of unmounting.
+    focusIds?: Set<string> | null
+    // The node the camera should glide to when focus changes (null = leave the camera).
+    focusCenterId?: string | null
     onSelect: (node: GraphNode) => void
   } = $props()
 
@@ -71,6 +78,21 @@
   const cam = { x: 0, y: 0, k: 1 } // screen = graph * k + (x,y)
   let fontReady = false
   let rafPending = false
+
+  // Focus fade state (render path, non-reactive). Out-of-scope nodes ease to 5% alpha
+  // over FADE_MS instead of vanishing, so refocusing reads as spatial movement.
+  const FADE_MS = 300
+  const OUT_ALPHA = 0.05
+  let focusSet: Set<string> | null = null
+  let fadeFrom = new Map<string, number>() // alpha factor per node when the fade began
+  let fadeStart = -Infinity
+
+  function focusFactor(id: string, now: number): number {
+    const target = !focusSet || focusSet.has(id) ? 1 : OUT_ALPHA
+    const from = fadeFrom.get(id) ?? target
+    const t = Math.min(1, (now - fadeStart) / FADE_MS)
+    return from + (target - from) * t
+  }
 
   // Precomputed soft-glow sprites, one per rune colour, drawn additively. Building the
   // gradient once (not per node per frame) is what keeps the glow cheap.
@@ -112,6 +134,7 @@
     for (let i = nodes.length - 1; i >= 0; i--) {
       const n = nodes[i]
       if (hiddenTypes?.has(n.type)) continue
+      if (focusSet && !focusSet.has(n.id)) continue // faded out = not clickable
       const dx = p.x - n.x
       const dy = p.y - n.y
       if (dx * dx + dy * dy <= RADIUS[n.type] * RADIUS[n.type]) return n
@@ -132,6 +155,8 @@
     const vis = (n: SimNode) => !hiddenTypes?.has(n.type)
     const matched = (n: SimNode) =>
       vis(n) && (!highlightType || n.type === highlightType) && (!q || n.title.toLowerCase().includes(q))
+    const nowT = performance.now()
+    const fading = nowT - fadeStart < FADE_MS
 
     // edges
     ctx.lineWidth = 1.2
@@ -139,7 +164,8 @@
       const s = l.source
       const t = l.target
       if (!s || !t || !vis(s) || !vis(t)) continue
-      ctx.globalAlpha = matched(s) && matched(t) ? 0.3 : 0.07
+      const focus = Math.min(focusFactor(s.id, nowT), focusFactor(t.id, nowT))
+      ctx.globalAlpha = (matched(s) && matched(t) ? 0.3 : 0.07) * focus
       ctx.strokeStyle = edgeColor(s.type, t.type)
       ctx.beginPath()
       ctx.moveTo(s.x, s.y)
@@ -155,7 +181,7 @@
       const r = RADIUS[n.type]
       const hot = n.id === selectedId || n.id === hoverId
       const size = r * (hot ? 4.4 : 3.4)
-      ctx.globalAlpha = hot ? 0.9 : 0.5
+      ctx.globalAlpha = (hot ? 0.9 : 0.5) * focusFactor(n.id, nowT)
       const sprite = halo[n.type]
       if (sprite) ctx.drawImage(sprite, n.x - size / 2, n.y - size / 2, size, size)
     }
@@ -171,7 +197,8 @@
       const sel = n.id === selectedId
       const dim = !matched(n)
       const color = RUNE[n.type].color
-      ctx.globalAlpha = dim ? 0.18 : 1
+      const focus = focusFactor(n.id, nowT)
+      ctx.globalAlpha = (dim ? 0.18 : 1) * focus
 
       ctx.beginPath()
       ctx.arc(n.x, n.y, r, 0, TAU)
@@ -187,7 +214,7 @@
         ctx.save()
         ctx.setLineDash([3, 3])
         ctx.lineWidth = 1
-        ctx.globalAlpha = dim ? 0.18 : 0.7
+        ctx.globalAlpha = (dim ? 0.18 : 0.7) * focus
         ctx.beginPath()
         ctx.arc(n.x, n.y, r + 4, 0, TAU)
         ctx.stroke()
@@ -210,7 +237,7 @@
         const ly = n.y + r + 12
         if (hot) {
           const tw = ctx.measureText(label).width
-          ctx.globalAlpha = 1
+          ctx.globalAlpha = focus
           ctx.fillStyle = 'rgba(12,11,20,0.82)'
           ctx.beginPath()
           ctx.roundRect(n.x - tw / 2 - 5, ly - 9, tw + 10, 17, 3)
@@ -223,6 +250,7 @@
       }
     }
     ctx.globalAlpha = 1
+    if (fading) scheduleDraw() // keep the focus tween moving until it lands
   }
 
   // ---- interaction --------------------------------------------------------------
@@ -452,6 +480,46 @@
       }
     }
 
+    scheduleDraw()
+  })
+
+  // Refocus: capture current alphas as the fade origin, swap the focus set, and glide
+  // the camera to the focus node at the current zoom. Positions never change on focus
+  // (the layout is frozen); only alphas and the viewport move.
+  let glideRaf = 0
+  let lastCenter: string | null = null
+
+  function glideTo(id: string) {
+    const n = nodes.find((m) => m.id === id)
+    if (!n) return
+    const sx = cam.x
+    const sy = cam.y
+    const tx = cssW / 2 - cam.k * n.x
+    const ty = cssH / 2 - cam.k * n.y
+    const t0 = performance.now()
+    cancelAnimationFrame(glideRaf)
+    const step = (t: number) => {
+      const p = Math.min(1, (t - t0) / 450)
+      const e = 1 - Math.pow(1 - p, 3) // ease-out cubic
+      cam.x = sx + (tx - sx) * e
+      cam.y = sy + (ty - sy) * e
+      scheduleDraw()
+      if (p < 1) glideRaf = requestAnimationFrame(step)
+    }
+    glideRaf = requestAnimationFrame(step)
+  }
+
+  $effect(() => {
+    const ids = focusIds ?? null
+    const center = focusCenterId
+    const now = performance.now()
+    const from = new Map<string, number>()
+    for (const n of nodes) from.set(n.id, focusFactor(n.id, now))
+    fadeFrom = from
+    focusSet = ids
+    fadeStart = now
+    if (center && center !== lastCenter) glideTo(center)
+    lastCenter = center ?? null
     scheduleDraw()
   })
 
