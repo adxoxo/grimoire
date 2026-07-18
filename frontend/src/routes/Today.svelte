@@ -235,19 +235,19 @@
   <div class="min-h-screen flex items-center justify-center"><p class="font-headline-md text-headline-md text-text-tertiary animate-pulse">Consulting the grimoire...</p></div>
 {:else}
   <main class="min-h-screen pb-40 flex flex-col items-center overflow-y-auto">
-    <div class="w-full max-w-[1200px] px-6 md:px-margin">
-      <header class="py-lg mt-4 md:mt-8 flex justify-between items-start">
+    <div class="w-full max-w-5xl px-8 md:px-14">
+      <header class="py-md mt-2 flex justify-between items-center">
         <div>
-          <h1 class="font-display-lg text-display-lg text-rune-quest tracking-widest mb-1">Today</h1>
+          <h1 class="font-headline-lg text-headline-lg text-rune-quest tracking-widest mb-0.5">Today</h1>
           <p class="font-label-md text-label-md text-text-muted uppercase tracking-[0.2em]">{fmtDateline()}</p>
         </div>
-        <div class="relative w-12 h-12 flex items-center justify-center text-primary opacity-80 overflow-hidden">
-          <span class="material-symbols-outlined text-[32px] sigil-spin">auto_awesome</span>
-          <div class="absolute inset-0 bg-primary/20 blur-xl rounded-full"></div>
+        <div class="relative w-10 h-10 flex items-center justify-center text-primary opacity-70 overflow-hidden">
+          <span class="material-symbols-outlined text-[24px] sigil-spin">auto_awesome</span>
+          <div class="absolute inset-0 bg-primary/15 blur-xl rounded-full"></div>
         </div>
       </header>
 
-      <div class="flex flex-col gap-xl">
+      <div class="flex flex-col gap-lg">
         <!-- habits strip -->
         <section class="flex flex-col gap-3">
           <div class="flex justify-between items-center px-1">
@@ -278,18 +278,17 @@
               ondragover={(e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; overQ = q }}
               ondragleave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) overQ = null }}
               ondrop={(e) => { e.preventDefault(); overQ = null; const id = e.dataTransfer?.getData('text/plain'); if (id) moveTask(id, q) }}
-              class="grimoire-card border-none rounded-none p-5 flex flex-col gap-3 relative min-h-[240px] max-h-[46vh] min-w-0 transition-shadow"
-              style="box-shadow:{overQ === q ? `inset 0 0 0 2px ${meta.color}, 0 0 28px ${meta.glow}` : `0 0 20px ${meta.glow}`}"
+              class="grimoire-card border-none rounded-none p-4 flex flex-col gap-2.5 relative min-h-[180px] max-h-[40vh] min-w-0 transition-shadow"
+              style="box-shadow:{overQ === q ? `inset 0 0 0 2px ${meta.color}, 0 0 28px ${meta.glow}` : 'none'}"
             >
-              <div class="absolute top-0 left-0 w-1 h-full" style="background:{meta.color}"></div>
               {#if overQ === q}
                 <div class="absolute inset-0 z-0 flex items-center justify-center pointer-events-none" style="background:{`${meta.color}0f`}" transition:fade={{ duration: dur(120) }}>
                   <span class="font-headline-md text-headline-md" style="color:{meta.color}">Drop into {meta.label}</span>
                 </div>
               {/if}
               <div class="flex justify-between items-start relative z-10">
-                <h3 class="font-headline-md text-headline-md flex items-center gap-2" style="color:{meta.color}">
-                  <span class="material-symbols-outlined text-[20px]">{meta.icon}</span>{meta.label}
+                <h3 class="font-headline-sm text-headline-sm flex items-center gap-2" style="color:{meta.color}">
+                  <span class="material-symbols-outlined text-[18px]">{meta.icon}</span>{meta.label}
                 </h3>
                 <div class="flex items-center gap-2">
                   <button onclick={() => (dialog = { kind: 'task', q })} class="material-symbols-outlined text-[18px] text-text-tertiary hover:text-on-surface transition-colors" aria-label="Add task">add</button>
@@ -298,8 +297,8 @@
               </div>
               <div class="flex flex-col gap-2 overflow-y-auto relative z-10 flex-1 min-h-0 pr-1">
                 {#if tasks.length === 0}
-                  <div class="flex-1 flex flex-col items-center justify-center text-center py-8">
-                    <span class="material-symbols-outlined text-[28px] text-border-default mb-1">inbox</span>
+                  <div class="flex-1 flex flex-col items-center justify-center text-center py-4">
+                    <span class="material-symbols-outlined text-[20px] text-border-default mb-1">inbox</span>
                     <p class="font-body-md text-body-sm text-text-tertiary">{q === 'Q4' ? 'The void is empty. Keep it that way.' : 'Nothing here.'}</p>
                   </div>
                 {:else}
