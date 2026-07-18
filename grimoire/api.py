@@ -76,10 +76,26 @@ def health() -> dict[str, str]:
 
 
 @app.get("/api/graph")
-def graph() -> dict[str, list]:
-    """The whole constellation: nodes + edges, for the force-directed layout."""
+def graph() -> dict[str, object]:
+    """The whole constellation: nodes + edges + saved layout. `layout` maps node_id to
+    {x, y, pinned}; the client restores these so the graph opens settled and only
+    simulates nodes without a saved position."""
     with _repo() as repo:
-        return {"nodes": repo.list_nodes(), "edges": repo.list_edges()}
+        return {"nodes": repo.list_nodes(), "edges": repo.list_edges(), "layout": repo.get_layout()}
+
+
+class LayoutPosition(BaseModel):
+    node_id: str
+    x: float
+    y: float
+    pinned: bool = False
+
+
+@app.put("/api/layout")
+def save_layout(positions: list[LayoutPosition]) -> dict:
+    """Persist constellation node positions (after the sim settles, or on drag end)."""
+    with _repo() as repo:
+        return {"saved": repo.save_layout([p.model_dump() for p in positions])}
 
 
 @app.get("/api/nodes/{node_id}")

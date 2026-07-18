@@ -14,9 +14,23 @@ export interface GraphEdge {
   rel: string
 }
 
+export interface NodePosition {
+  x: number
+  y: number
+  pinned: boolean
+}
+
 export interface Graph {
   nodes: GraphNode[]
   edges: GraphEdge[]
+  layout?: Record<string, NodePosition>
+}
+
+export interface LayoutPosition {
+  node_id: string
+  x: number
+  y: number
+  pinned?: boolean
 }
 
 export interface LinkedNode {
@@ -116,6 +130,7 @@ export interface NewNode {
 
 export const api = {
   graph: () => get<Graph>('/api/graph'),
+  saveLayout: (positions: LayoutPosition[]) => put<{ saved: number }>('/api/layout', positions),
   project: (name: string) => get<Project>(`/api/projects/${encodeURIComponent(name)}`),
   node: (id: string) => get<Record<string, unknown>>(`/api/nodes/${encodeURIComponent(id)}`),
   review: () => get<{ items: ReviewItem[] }>('/api/review'),

@@ -1,16 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte'
-  import {
-    forceCenter,
-    forceCollide,
-    forceLink,
-    forceManyBody,
-    forceSimulation,
-    forceX,
-    forceY,
-    type Simulation,
-  } from 'd3'
-  import type { Graph, GraphNode } from '../lib/api'
+  import { forceCollide, forceLink, forceManyBody, forceSimulation } from 'd3'
+  import { api, type Graph, type GraphNode } from '../lib/api'
   import { RUNE, edgeColor, type NodeType } from '../lib/theme'
 
   interface SimNode extends GraphNode {
@@ -22,10 +13,30 @@
   interface SimLink {
     source: SimNode
     target: SimNode
+    rel: string
   }
 
   const RADIUS: Record<NodeType, number> = { project: 30, memory: 20, document: 19, entity: 17 }
   const TAU = Math.PI * 2
+
+  // Anchors are the fixed spine of the constellation; leaves settle around them and
+  // freeze. Projects (quest lines) are the only anchor type in this graph.
+  const isAnchor = (n: GraphNode) => n.type === 'project'
+
+  // Edge stiffness by relationship: tight and strong for ownership so leaves hug their
+  // quest line; loose and weak for cross-references so they do not collapse clusters.
+  const EDGE_STIFFNESS: Record<string, { distance: number; strength: number }> = {
+    belongs_to: { distance: 46, strength: 0.9 },
+    mentions: { distance: 85, strength: 0.5 },
+    derived_from: { distance: 85, strength: 0.5 },
+    references: { distance: 160, strength: 0.1 },
+  }
+  const DEFAULT_STIFFNESS = { distance: 95, strength: 0.4 }
+
+  // Tick budgets: a first-ever layout settles long; adding nodes to a saved layout only
+  // re-settles the newcomers (everything saved is pinned during the pass).
+  const FULL_TICKS = 300
+  const INCREMENTAL_TICKS = 120
 
   let {
     graph,
@@ -49,9 +60,12 @@
   // never touches the render path, so hundreds of nodes stay cheap and an idle graph
   // costs zero repaints (the render loop is event-driven, not a permanent rAF).
   let ctx: CanvasRenderingContext2D | null = null
-  let sim: Simulation<SimNode, undefined> | null = null
   let nodes: SimNode[] = []
   let links: SimLink[] = []
+  // Positions computed this session (id -> {x,y,pinned}). Bridges the gap between a
+  // settle/drag and the server round trip, so a live graph refetch never snaps
+  // freshly placed nodes back to an un-laid-out state.
+  const posMap = new Map<string, { x: number; y: number; pinned: boolean }>()
   let cssW = 800
   let cssH = 600
   const cam = { x: 0, y: 0, k: 1 } // screen = graph * k + (x,y)
@@ -238,9 +252,6 @@
     if (n) {
       mode = 'drag'
       dragging = n
-      n.fx = n.x
-      n.fy = n.y
-      sim?.alphaTarget(0.3).restart()
     } else {
       mode = 'pan'
       last = { x: e.clientX, y: e.clientY }
@@ -252,9 +263,10 @@
     if (mode) {
       if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 4) moved = true
       if (mode === 'drag' && dragging) {
+        // The graph is frozen: only the dragged node moves, nothing else reflows.
         const g = toGraph(e.clientX, e.clientY)
-        dragging.fx = g.x
-        dragging.fy = g.y
+        dragging.x = dragging.fx = g.x
+        dragging.y = dragging.fy = g.y
         scheduleDraw()
       } else if (mode === 'pan') {
         cam.x += e.clientX - last.x
@@ -281,10 +293,19 @@
 
   function onPointerUp() {
     if (mode === 'drag' && dragging) {
-      dragging.fx = null
-      dragging.fy = null
-      sim?.alphaTarget(0)
-      if (!moved) onSelect(dragging)
+      if (moved) {
+        // Persist the drop as pinned so a reload restores exactly this position.
+        dragging.fx = dragging.x
+        dragging.fy = dragging.y
+        posMap.set(dragging.id, { x: dragging.x, y: dragging.y, pinned: true })
+        api.saveLayout([{ node_id: dragging.id, x: dragging.x, y: dragging.y, pinned: true }]).catch(() => {})
+      } else {
+        if (!isAnchor(dragging) && !posMap.get(dragging.id)?.pinned) {
+          dragging.fx = null
+          dragging.fy = null
+        }
+        onSelect(dragging)
+      }
     }
     mode = null
     dragging = null
@@ -304,6 +325,7 @@
     ctx = canvas.getContext('2d')
     buildHalos()
 
+    // Resize only re-rasterizes and redraws — the layout is frozen, so nothing reflows.
     const ro = new ResizeObserver(() => {
       const r = canvas!.getBoundingClientRect()
       cssW = r.width
@@ -311,10 +333,6 @@
       const dpr = window.devicePixelRatio || 1
       canvas!.width = Math.round(cssW * dpr)
       canvas!.height = Math.round(cssH * dpr)
-      sim?.force('center', forceCenter(cssW / 2, cssH / 2))
-      sim?.force('x', forceX<SimNode>(cssW / 2).strength((d) => (d.type === 'project' ? 0.08 : 0.02)))
-      sim?.force('y', forceY<SimNode>(cssH / 2).strength((d) => (d.type === 'project' ? 0.08 : 0.03)))
-      sim?.alpha(0.3).restart()
       scheduleDraw()
     })
     ro.observe(canvas)
@@ -327,32 +345,114 @@
     return () => ro.disconnect()
   })
 
-  // Rebuild the simulation when the graph content changes.
+  // Lay the graph out when its content changes: anchors pinned at saved (or
+  // deterministic) coordinates, leaves restored from the saved layout, and only nodes
+  // WITHOUT a saved position settled by a bounded synchronous tick run. The simulation
+  // never runs live: after this effect the graph is frozen until the user drags a node.
   $effect(() => {
     sig
     const g = untrack(() => graph)
     if (!ctx) return
+    if (canvas) {
+      const r = canvas.getBoundingClientRect()
+      if (r.width > 0) {
+        cssW = r.width
+        cssH = r.height
+      }
+    }
 
-    nodes = g.nodes.map((n) => ({ ...n, x: cssW / 2 + (Math.random() - 0.5) * 40, y: cssH / 2 + (Math.random() - 0.5) * 40 })) as SimNode[]
-    const byId = new Set(nodes.map((n) => n.id))
+    // Effective saved positions: this session's fresh placements win over the server's.
+    const saved = new Map<string, { x: number; y: number; pinned: boolean }>()
+    for (const [id, p] of Object.entries(g.layout ?? {})) saved.set(id, p)
+    for (const [id, p] of posMap) saved.set(id, p)
+
+    nodes = g.nodes.map((n) => ({ ...n, x: 0, y: 0 })) as SimNode[]
+    const byId = new Map(nodes.map((n) => [n.id, n]))
     links = g.edges
       .filter((e) => byId.has(e.src) && byId.has(e.dst))
-      .map((e) => ({ source: e.src as unknown as SimNode, target: e.dst as unknown as SimNode }))
+      .map((e) => ({ source: e.src as unknown as SimNode, target: e.dst as unknown as SimNode, rel: e.rel }))
 
-    sim?.stop()
-    sim = forceSimulation<SimNode>(nodes)
-      .force('charge', forceManyBody().strength(-380))
-      .force('link', forceLink<SimNode, SimLink>(links).id((d: any) => d.id).distance(95).strength(0.45))
-      .force('center', forceCenter(cssW / 2, cssH / 2))
-      .force('collide', forceCollide<SimNode>((d) => RADIUS[d.type] + 14))
-      .force('x', forceX<SimNode>(cssW / 2).strength((d) => (d.type === 'project' ? 0.08 : 0.02)))
-      .force('y', forceY<SimNode>(cssH / 2).strength((d) => (d.type === 'project' ? 0.08 : 0.03)))
-      .on('tick', scheduleDraw)
-
-    return () => {
-      sim?.stop()
-      sim = null
+    const cx = cssW / 2
+    const cy = cssH / 2
+    // Parent anchor per leaf, so new leaves spawn where they belong.
+    const parentOf = new Map<string, string>()
+    for (const e of g.edges) {
+      if (e.rel !== 'belongs_to') continue
+      const dst = byId.get(e.dst)
+      if (dst && isAnchor(dst)) parentOf.set(e.src, e.dst)
     }
+
+    const anchors = nodes.filter(isAnchor).sort((a, b) => (a.id < b.id ? -1 : 1))
+    const ring = Math.max(180, anchors.length * 55)
+    anchors.forEach((n, i) => {
+      const s = saved.get(n.id)
+      if (s) {
+        n.x = s.x
+        n.y = s.y
+      } else {
+        const angle = (i / Math.max(1, anchors.length)) * TAU
+        n.x = cx + Math.cos(angle) * ring
+        n.y = cy + Math.sin(angle) * ring
+      }
+      n.fx = n.x // anchors are always fixed
+      n.fy = n.y
+    })
+
+    let newCount = 0
+    for (const n of nodes) {
+      if (isAnchor(n)) continue
+      const s = saved.get(n.id)
+      if (s) {
+        n.x = s.x
+        n.y = s.y
+        n.fx = s.x // temporary pin while newcomers settle; released below
+        n.fy = s.y
+      } else {
+        newCount++
+        const p = parentOf.get(n.id) ? byId.get(parentOf.get(n.id)!) : undefined
+        // Deterministic small offset (hash of id) so a re-render is stable pre-settle.
+        const seed = n.id.charCodeAt(0) + n.id.charCodeAt(n.id.length - 1)
+        n.x = (p?.x ?? cx) + Math.cos(seed) * 40
+        n.y = (p?.y ?? cy) + Math.sin(seed) * 40
+      }
+    }
+
+    if (newCount > 0) {
+      const sim = forceSimulation<SimNode>(nodes)
+        .force(
+          'link',
+          forceLink<SimNode, SimLink>(links)
+            .id((d: any) => d.id)
+            .distance((l) => (EDGE_STIFFNESS[l.rel] ?? DEFAULT_STIFFNESS).distance)
+            .strength((l) => (EDGE_STIFFNESS[l.rel] ?? DEFAULT_STIFFNESS).strength),
+        )
+        .force('charge', forceManyBody<SimNode>().strength(-320))
+        .force('collide', forceCollide<SimNode>((d) => RADIUS[d.type] + 14))
+        .stop()
+      const ticks = saved.size === 0 ? FULL_TICKS : INCREMENTAL_TICKS
+      for (let i = 0; i < ticks; i++) sim.tick()
+      sim.stop()
+
+      // Record every position (anchors and user-pinned leaves stay pinned) and persist.
+      const batch: { node_id: string; x: number; y: number; pinned: boolean }[] = []
+      for (const n of nodes) {
+        const pinned = isAnchor(n) || (saved.get(n.id)?.pinned ?? false)
+        posMap.set(n.id, { x: n.x, y: n.y, pinned })
+        batch.push({ node_id: n.id, x: n.x, y: n.y, pinned })
+      }
+      api.saveLayout(batch).catch(() => {})
+    }
+
+    // Release the temporary pins on unpinned leaves so a drag can move them freely.
+    for (const n of nodes) {
+      if (isAnchor(n)) continue
+      if (!(saved.get(n.id)?.pinned ?? false) && !posMap.get(n.id)?.pinned) {
+        n.fx = null
+        n.fy = null
+      }
+    }
+
+    scheduleDraw()
   })
 
   // Restyle (selection / highlight / filter) is just a redraw — no relayout.

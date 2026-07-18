@@ -48,6 +48,17 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunk_vectors USING vec0(
   embedding float[768]
 );
 
+-- Persisted constellation layout (fixed anchors + settled, frozen leaves).
+-- One row per node that has a placed position. `pinned` = the user (or the anchor rule)
+-- fixed it; the force simulation must never move it. Absent row = not yet laid out.
+CREATE TABLE IF NOT EXISTS node_layout (
+  node_id TEXT PRIMARY KEY REFERENCES nodes(id),
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);
+
 -- Traversal and lookup indexes (the read path leans on these).
 CREATE INDEX IF NOT EXISTS idx_edges_dst ON edges(dst, rel);
 CREATE INDEX IF NOT EXISTS idx_edges_src ON edges(src, rel);

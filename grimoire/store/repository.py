@@ -125,6 +125,33 @@ class Repository:
         rows = self._conn.execute("SELECT src, dst, rel FROM edges").fetchall()
         return [dict(r) for r in rows]
 
+    # ---- constellation layout --------------------------------------------
+
+    def get_layout(self) -> dict[str, dict[str, Any]]:
+        """Persisted node positions, keyed by node id. The constellation restores these
+        on load so the graph opens settled instead of re-simulating from scratch."""
+        rows = self._conn.execute("SELECT node_id, x, y, pinned FROM node_layout").fetchall()
+        return {
+            r["node_id"]: {"x": r["x"], "y": r["y"], "pinned": bool(r["pinned"])}
+            for r in rows
+        }
+
+    def save_layout(self, positions: list[dict[str, Any]]) -> int:
+        """Upsert a batch of node positions. Each item: {node_id, x, y, pinned?}.
+        Called after the simulation settles and on drag end. Returns rows written."""
+        now = _now()
+        with self._conn:
+            for p in positions:
+                self._conn.execute(
+                    "INSERT INTO node_layout(node_id, x, y, pinned, updated_at)"
+                    " VALUES (?,?,?,?,?)"
+                    " ON CONFLICT(node_id) DO UPDATE SET x=excluded.x, y=excluded.y,"
+                    " pinned=excluded.pinned, updated_at=excluded.updated_at",
+                    (p["node_id"], float(p["x"]), float(p["y"]),
+                     1 if p.get("pinned") else 0, now),
+                )
+        return len(positions)
+
     def nodes_by_status(self, status: str) -> list[dict[str, Any]]:
         """Nodes in a given status (e.g. 'unreviewed'), newest first. The review queue."""
         rows = self._conn.execute(
@@ -182,6 +209,7 @@ class Repository:
             self._conn.execute("DELETE FROM chunks WHERE node_id = ?", (node_id,))
             self._conn.execute("DELETE FROM memory_raw WHERE node_id = ?", (node_id,))
             self._conn.execute("DELETE FROM edges WHERE src = ? OR dst = ?", (node_id, node_id))
+            self._conn.execute("DELETE FROM node_layout WHERE node_id = ?", (node_id,))
             cur = self._conn.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
             return cur.rowcount
 
