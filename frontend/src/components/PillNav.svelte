@@ -1,6 +1,6 @@
 <script lang="ts">
   import { router, link } from '../lib/router.svelte'
-  import { openScribe } from '../lib/appstate.svelte'
+  import { openCapture } from '../lib/appstate.svelte'
   import { RUNE } from '../lib/theme'
 
   // The grimoire chrome in one floating pill: sigil, icon tabs, scribe. The 256px
@@ -53,9 +53,9 @@
   <div class="w-px h-6 bg-border-subtle mx-1" aria-hidden="true"></div>
 
   <button
-    onclick={openScribe}
-    title="Scribe new node"
-    aria-label="Scribe new node"
+    onclick={openCapture}
+    title="Scribe a thought or attach a PDF / book"
+    aria-label="Scribe"
     class="h-9 shrink-0 rounded-full border border-primary-container text-primary-container px-3 flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(212,169,63,0.3)] transition-all font-label-md text-label-md"
   >
     <span class="material-symbols-outlined text-[18px]">add</span>

@@ -4,6 +4,8 @@
 
 export const appState = $state({
   scribeOpen: false,
+  // The quick-capture dialog (thought + attachments), opened from the pill nav.
+  captureOpen: false,
   // Bumped to make graph-backed views refetch after a write (scribe / delete / compact).
   graphVersion: 0,
 })
@@ -14,6 +16,14 @@ export function openScribe(): void {
 
 export function closeScribe(): void {
   appState.scribeOpen = false
+}
+
+export function openCapture(): void {
+  appState.captureOpen = true
+}
+
+export function closeCapture(): void {
+  appState.captureOpen = false
 }
 
 export function refreshGraph(): void {

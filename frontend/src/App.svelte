@@ -2,6 +2,7 @@
   import { router, match } from './lib/router.svelte'
   import PillNav from './components/PillNav.svelte'
   import ScribeModal from './components/ScribeModal.svelte'
+  import ScribeCapture from './components/ScribeCapture.svelte'
   import Home from './routes/Home.svelte'
   import Today from './routes/Today.svelte'
   import Flow from './routes/Flow.svelte'
@@ -48,5 +49,6 @@
       <Route {...resolved.props} />
     {/key}
   </div>
+  <ScribeCapture />
   <ScribeModal />
 </div>

@@ -8,7 +8,6 @@
   import { dur } from '../lib/motion.svelte'
   import Constellation from '../components/Constellation.svelte'
   import NodeDetailPanel from '../components/NodeDetailPanel.svelte'
-  import KnowledgeScribe from '../components/KnowledgeScribe.svelte'
 
   const ALL_TYPES: NodeType[] = ['project', 'document', 'memory', 'entity']
 
@@ -26,18 +25,11 @@
 
   const highlightType = $derived((router.query.type as NodeType | undefined) ?? null)
 
-  // Land on the most recently active quest line's local view (nodes arrive ordered by
-  // updated_at DESC). If the focused node vanished (deleted), refocus the same way.
+  // Focus mode shows everything until the user clicks a node - nothing is auto-chosen.
+  // If the focused node vanished (deleted elsewhere), zoom back out to the whole graph.
   $effect(() => {
-    if (!graph) return
-    if (focusId && graph.nodes.some((n) => n.id === focusId)) return
-    const recent = graph.nodes.find((n) => n.type === 'project')
-    if (recent) {
-      focusId = recent.id
-    } else {
-      focusId = null
-      mode = 'all'
-    }
+    if (!graph || !focusId) return
+    if (!graph.nodes.some((n) => n.id === focusId)) focusId = null
   })
 
   // Clear a stale selection: if another client deleted the selected node, the refreshed
@@ -82,11 +74,17 @@
     return seen
   })
 
-  // Clicking a node opens its panel and, in focus mode, recenters the local view on it
-  // (the Obsidian local-graph behaviour).
+  // Clicking a node always opens its details. In focus mode it ALSO zooms into that
+  // node's neighbourhood (the hops, sized by the depth slider); in All mode the camera
+  // never moves. Switching to All zooms back out and clears the focus.
   function handleSelect(node: GraphNode) {
     selected = node
     if (mode === 'focus') focusId = node.id
+  }
+
+  function setMode(m: 'focus' | 'all') {
+    mode = m
+    if (m === 'all') focusId = null
   }
 
   // Refetch on first mount and whenever a write bumps the graph version.
@@ -149,34 +147,45 @@
 </script>
 
 <main class="relative w-full h-screen bg-bg-page overflow-hidden">
-  <!-- Chrome row under the pill nav: search, then the focus slider + depth -->
-  <div class="absolute top-[4.75rem] inset-x-0 px-4 z-30 flex flex-wrap items-start justify-center gap-3 pointer-events-none">
-    <div class="w-full max-w-xl pointer-events-auto">
-      <form
-        onsubmit={runSearch}
-        class="relative bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex items-center px-4 py-2.5 group focus-within:border-rune-quest focus-within:shadow-[0_0_20px_rgba(212,169,63,0.2)] transition-all duration-300"
-      >
-        <span class="material-symbols-outlined text-text-muted group-focus-within:text-rune-quest transition-colors mr-3">search</span>
-        <input
-          bind:value={query}
-          class="bg-transparent border-none text-on-surface placeholder:text-text-tertiary w-full font-body-md text-body-md outline-none"
-          placeholder="Search the grimoire..."
-          type="text"
-        />
-        <button
-          type="button"
-          onclick={() => (showFilter = !showFilter)}
-          class="material-symbols-outlined text-text-muted hover:text-primary ml-3 transition-colors"
-          style="color:{hidden.size ? '#d4a93f' : ''}"
-          aria-label="Filter node types"
-          aria-expanded={showFilter}
-        >
-          tune
-        </button>
-      </form>
+  <!-- Focus slider pill, beside the nav pill on the top row (drops below it when the
+       viewport is too narrow to share the row) -->
+  {#if graph && graph.nodes.length > 0}
+    <div
+      title="Focus: click a node to zoom into its neighbourhood (hops set by depth). All: see everything; clicking only shows details."
+      class="fixed right-4 top-[4.75rem] xl:top-4 z-40 flex items-center gap-2 rounded-full bg-bg-panel/85 backdrop-blur-md border border-border-default p-1 shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
+    >
+      <div class="relative flex">
+        <div
+          aria-hidden="true"
+          class="absolute top-0 bottom-0 w-1/2 rounded-full bg-rune-quest/15 border border-rune-quest/40 transition-[left] duration-200"
+          style="left:{mode === 'focus' ? '0%' : '50%'}"
+        ></div>
+        {#each ['focus', 'all'] as const as m (m)}
+          <button
+            onclick={() => setMode(m)}
+            aria-pressed={mode === m}
+            class="relative w-16 py-1.5 rounded-full font-label-md text-label-md transition-colors"
+            style="color:{mode === m ? '#e3d3a0' : '#9b96b8'}"
+          >
+            {m === 'focus' ? 'Focus' : 'All'}
+          </button>
+        {/each}
+      </div>
+      {#if mode === 'focus'}
+        <label class="flex items-center gap-2 pr-3 pl-1 font-label-md text-label-md text-text-muted">
+          Depth
+          <input type="range" min="1" max="3" step="1" bind:value={depth} class="w-16" style="accent-color:#d4a93f" />
+          <span class="text-on-surface w-3 text-center">{depth}</span>
+        </label>
+      {/if}
+    </div>
+  {/if}
 
+  <!-- Search lives at the bottom, where the scribe bar used to be -->
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl px-4 z-30">
+    <div class="relative">
       {#if showFilter}
-        <div transition:fly={{ y: -8, duration: dur(180) }} class="mt-2 ml-auto w-56 bg-bg-panel border border-border-default rounded-lg p-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)] float-right">
+        <div transition:fly={{ y: 8, duration: dur(180) }} class="absolute bottom-full right-0 mb-2 w-56 bg-bg-panel border border-border-default rounded-lg p-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
           <p class="font-label-md text-label-md text-text-muted uppercase tracking-widest mb-2">Show node types</p>
           {#each ALL_TYPES as t (t)}
             {@const rune = RUNE[t]}
@@ -206,38 +215,29 @@
           </div>
         </div>
       {/if}
+      <form
+        onsubmit={runSearch}
+        class="relative bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex items-center px-4 py-2.5 group focus-within:border-rune-quest focus-within:shadow-[0_0_20px_rgba(212,169,63,0.2)] transition-all duration-300"
+      >
+        <span class="material-symbols-outlined text-text-muted group-focus-within:text-rune-quest transition-colors mr-3">search</span>
+        <input
+          bind:value={query}
+          class="bg-transparent border-none text-on-surface placeholder:text-text-tertiary w-full font-body-md text-body-md outline-none"
+          placeholder="Search the grimoire..."
+          type="text"
+        />
+        <button
+          type="button"
+          onclick={() => (showFilter = !showFilter)}
+          class="material-symbols-outlined text-text-muted hover:text-primary ml-3 transition-colors"
+          style="color:{hidden.size ? '#d4a93f' : ''}"
+          aria-label="Filter node types"
+          aria-expanded={showFilter}
+        >
+          tune
+        </button>
+      </form>
     </div>
-
-    {#if graph && graph.nodes.length > 0}
-      <!-- Focus slider pill: the local-view / whole-constellation switch, plus depth -->
-      <div class="pointer-events-auto flex items-center gap-2 rounded-full bg-bg-panel/80 backdrop-blur-md border border-border-default p-1 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
-        <div class="relative flex">
-          <div
-            aria-hidden="true"
-            class="absolute top-0 bottom-0 w-1/2 rounded-full bg-rune-quest/15 border border-rune-quest/40 transition-[left] duration-200"
-            style="left:{mode === 'focus' ? '0%' : '50%'}"
-          ></div>
-          {#each ['focus', 'all'] as const as m (m)}
-            <button
-              onclick={() => (mode = m)}
-              disabled={m === 'focus' && !focusId}
-              aria-pressed={mode === m}
-              class="relative w-16 py-1.5 rounded-full font-label-md text-label-md transition-colors disabled:opacity-40"
-              style="color:{mode === m ? '#e3d3a0' : '#9b96b8'}"
-            >
-              {m === 'focus' ? 'Focus' : 'All'}
-            </button>
-          {/each}
-        </div>
-        {#if mode === 'focus'}
-          <label class="flex items-center gap-2 pr-3 pl-1 font-label-md text-label-md text-text-muted">
-            Depth
-            <input type="range" min="1" max="3" step="1" bind:value={depth} class="w-16" style="accent-color:#d4a93f" />
-            <span class="text-on-surface w-3 text-center">{depth}</span>
-          </label>
-        {/if}
-      </div>
-    {/if}
   </div>
 
   {#if graph && graph.nodes.length > 0}
@@ -280,6 +280,4 @@
       </div>
     </div>
   {/if}
-
-  <KnowledgeScribe onScribed={refreshGraph} />
 </main>
