@@ -26,6 +26,7 @@ from grimoire.config import settings
 from grimoire.distill import capture_session
 from grimoire.planner.web import router as planner_router
 from grimoire.providers import get_provider
+from grimoire.rerank import get_reranker
 from grimoire.reembed import reembed_all
 from grimoire.scribe import scribe_from_text, suggest_project_for_document
 from grimoire.service import KnowledgeService
@@ -54,8 +55,10 @@ app.add_middleware(
 # paths, so we splice them straight in. Revisit if the dependency pins change.
 app.router.routes.extend(planner_router.routes)
 
-# Reused across requests; the store connection is per-request.
+# Reused across requests; the store connection is per-request. The re-ranker model loads
+# lazily on the first search, so this stays cheap at startup.
 _provider = get_provider()
+_reranker = get_reranker(settings.rerank_enabled, settings.rerank_model)
 
 
 @contextmanager
@@ -147,7 +150,9 @@ def search(q: str, project: str | None = None, k: int = 10) -> dict:
     Requires the embedding provider (Ollama) to be reachable."""
     with _repo() as repo:
         try:
-            hits = KnowledgeService(repo, _provider).retrieve(q, project=project, k=k)
+            hits = KnowledgeService(repo, _provider, _reranker).retrieve(
+                q, project=project, k=k, rerank_candidates=settings.rerank_candidates,
+            )
         except Exception as exc:  # noqa: BLE001 - surfaced to the client as 503
             raise HTTPException(
                 status_code=503,

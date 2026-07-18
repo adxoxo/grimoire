@@ -1,10 +1,11 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
 
-// The dashboard talks to the FastAPI read API on :8000 via a same-origin proxy,
-// so no CORS dance and no hardcoded host in the client.
+// The dashboard talks to the FastAPI read API on :8731 via a same-origin proxy,
+// so there is no CORS dance and no hardcoded host in the client. Port matches the
+// React app it replaces; change here and in the API launch command together.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [svelte()],
   server: {
     proxy: {
       '/api': 'http://localhost:8731',

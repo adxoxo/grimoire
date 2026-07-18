@@ -167,6 +167,23 @@ def habit_view(repo: PlannerRepository, today: date | None = None) -> list[dict]
     return out
 
 
+def habit_history(repo: PlannerRepository, habit_id: str, today: date | None = None) -> dict | None:
+    """A habit plus every date it was completed (newest first) and its live streak —
+    what the Today strip's habit-detail calendar draws."""
+    habit = repo.get_habit(habit_id)
+    if habit is None:
+        return None
+    today = today or datetime.now(timezone.utc).date()
+    return {
+        "id": habit["id"],
+        "name": habit["name"],
+        "cadence_type": habit["cadence_type"],
+        "weekly_target": habit.get("weekly_target"),
+        "dates": repo.habit_log_dates(habit_id),
+        "streak": compute_streak(repo, habit, today=today),
+    }
+
+
 def weekly_report(repo: PlannerRepository, today: date | None = None) -> dict:
     """Consistency report for the current week: per-habit hit rate + overall percent."""
     today = today or datetime.now(timezone.utc).date()

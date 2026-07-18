@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     # Embedding dimensions. Must match the vec0 schema (chunk_vectors.embedding float[768]).
     embed_dim: int = 768
 
+    # --- Re-ranker (optional second-stage retrieval) ---
+    # After bi-encoder recall + recency scoring, a LOCAL ONNX cross-encoder (via fastembed,
+    # CPU-only, no torch/GPU) re-scores the top candidates for precision. Best-effort: any
+    # failure falls back to the bi-encoder order. Default model ~240 MB RAM, loaded lazily
+    # on first query. Set rerank_enabled=false to disable, or shrink rerank_candidates.
+    rerank_enabled: bool = True
+    rerank_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
+    rerank_candidates: int = 25
+
     # --- Remote MCP hosting (optional) ---
     # stdio (default) = local subprocess launched per-agent by the MCP client.
     # http            = a long-running network daemon other agents reach by URL.

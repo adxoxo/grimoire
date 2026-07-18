@@ -1,10 +1,14 @@
 /** @type {import('tailwindcss').Config} */
-// Tokens ported from design/the_arcane_grimoire/DESIGN.md and the mockup configs.
+// Dark arcane grimoire — the FFXV-adjacent look: near-black violet base, gold accents,
+// four rune colours, Cinzel display + Spectral body. Tokens restored from the original
+// design (design/the_arcane_grimoire/DESIGN.md); the Svelte rewrite keeps its polish
+// (canvas constellation, animations, mobile nav), only the pigment + type come home.
 export default {
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  content: ['./index.html', './src/**/*.{svelte,ts}'],
   theme: {
     extend: {
       colors: {
+        // Base layers — near-black with a violet undertone
         'bg-page': '#0c0b14',
         'bg-panel': '#0e0d16',
         'bg-surface': '#16142b',
@@ -20,11 +24,13 @@ export default {
         'border-subtle': '#1d1a2e',
         outline: '#969083',
         'outline-variant': '#4b463b',
+        // Text
         'on-surface': '#e5e0ee',
         'on-surface-variant': '#cdc6b7',
         'on-background': '#e5e0ee',
         'text-muted': '#9b96b8',
         'text-tertiary': '#6b6789',
+        // Primary = arcane gold. Pale for display text, deeper for iconography/active states.
         primary: '#ffefc0',
         'primary-container': '#e3d3a0',
         'on-primary': '#39300b',
@@ -32,16 +38,22 @@ export default {
         secondary: '#eec054',
         'surface-tint': '#d5c694',
         error: '#ffb4ab',
-        'rune-quest': '#d4a93f',
-        'rune-tome': '#5b8dd9',
-        'rune-chronicle': '#d98b4a',
-        'rune-entity': '#9d6bd9',
+        // The four rune colours — one glowing hue per node type
+        'rune-quest': '#d4a93f', // quest line (project)  → gold
+        'rune-tome': '#5b8dd9', //  tome (document)       → arcane blue
+        'rune-chronicle': '#d98b4a', // chronicle (memory) → ember
+        'rune-entity': '#9d6bd9', // rune (entity)         → violet
         'status-error': '#ff4d4d',
       },
+      // Sharp / technical, minimal rounding for the "carved" feel. Circular accents
+      // (bars, nodes, dots) use rounded-full.
       borderRadius: {
-        DEFAULT: '0.125rem',
-        lg: '0.25rem',
-        xl: '0.5rem',
+        none: '0',
+        DEFAULT: '2px',
+        sm: '2px',
+        md: '3px',
+        lg: '3px',
+        xl: '4px',
         full: '9999px',
       },
       spacing: {
@@ -55,6 +67,8 @@ export default {
         margin: '32px',
       },
       fontFamily: {
+        // Headers → Cinzel (carved-capital serif, the FFXV-logo feel).
+        // Body → Spectral, light weights (readability wins every conflict).
         'display-lg': ['Cinzel', 'serif'],
         'headline-lg': ['Cinzel', 'serif'],
         'headline-md': ['Cinzel', 'serif'],

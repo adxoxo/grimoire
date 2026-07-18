@@ -146,5 +146,5 @@ Verify: `.venv/bin/python scripts/verify_ollama.py`. To skip Ollama (tests/CI), 
 | [grimoire/gateway.py](grimoire/gateway.py) | FastMCP gateway (`kb_*` tools) + OpenTelemetry. |
 | [grimoire/api.py](grimoire/api.py) | HTTP API: dashboard reads + n8n capture endpoint. |
 | [scripts/](scripts/) | seed, backfill, compact, verify_ollama. |
-| [frontend/](frontend/) | React + Vite + Tailwind dashboard (constellation, hub, sanctum, tome reader). |
+| [frontend/](frontend/) | Svelte 5 + Vite + Tailwind dashboard (canvas constellation, hub, sanctum, tome reader, planner). |
 | [tests/](tests/) | Phase 0 + Phase 1 acceptance suites. |

@@ -15,6 +15,7 @@ from pathlib import Path
 import httpx
 
 from grimoire.providers.base import Provider
+from grimoire.rerank import Reranker
 from grimoire.store import Repository
 
 HALF_LIFE_DAYS = 90.0
@@ -97,17 +98,27 @@ def _to_markdown(source: str) -> tuple[str, str]:
 
 
 class KnowledgeService:
-    def __init__(self, repo: Repository, provider: Provider) -> None:
+    def __init__(self, repo: Repository, provider: Provider, reranker: Reranker | None = None) -> None:
         self.repo = repo
         self.provider = provider
+        self.reranker = reranker
 
     # ---- read path ------------------------------------------------------
 
-    def retrieve(self, query: str, project: str | None = None, k: int = 10) -> list[dict]:
-        """Graph-narrow then vector-search. Score = similarity x recency decay.
+    def retrieve(
+        self,
+        query: str,
+        project: str | None = None,
+        k: int = 10,
+        rerank_candidates: int = 25,
+    ) -> list[dict]:
+        """Graph-narrow, vector-search, score = similarity x recency decay, then (if a
+        re-ranker is configured) a local cross-encoder re-rank of the top candidates.
 
-        With a project, candidates are narrowed to its 1-2 hop neighbourhood (entity
-        cap applied in the repository) before scoring. Without one, all chunks score.
+        With a project, candidates are narrowed to its 1-2 hop neighbourhood (entity cap
+        applied in the repository) before scoring. Without one, all chunks score. The
+        re-rank is best-effort: if the model is unavailable it falls back to the score
+        order, so retrieval never depends on the re-ranker being loadable.
         """
         q_emb = self.provider.embed_query(query)
         node_ids = None
@@ -124,7 +135,28 @@ class KnowledgeService:
             score = similarity * recency_decay(r["updated_at"], now)
             scored.append({**r, "similarity": similarity, "score": score})
         scored.sort(key=lambda x: x["score"], reverse=True)
+        if self.reranker is not None and len(scored) > 1:
+            return self._rerank(query, scored[:rerank_candidates])[:k]
         return scored[:k]
+
+    def _rerank(self, query: str, candidates: list[dict]) -> list[dict]:
+        """Second-stage re-rank of candidates by a local cross-encoder relevance score.
+
+        Best-effort: on ANY failure (model can't load, fastembed missing, score-count
+        mismatch) it returns the input order unchanged, degrading to the bi-encoder ranking
+        rather than breaking retrieval. Attaches `rerank_score` for observability.
+        """
+        if self.reranker is None or len(candidates) <= 1:
+            return candidates
+        passages = [(c.get("content") or "") for c in candidates]
+        try:
+            scores = self.reranker.scores(query, passages)
+        except Exception:  # noqa: BLE001 - reranker unavailable -> keep bi-encoder order
+            return candidates
+        if len(scores) != len(candidates):
+            return candidates
+        ranked = sorted(zip(candidates, scores), key=lambda t: t[1], reverse=True)
+        return [{**c, "rerank_score": s} for c, s in ranked]
 
     # ---- write path: documents -----------------------------------------
 

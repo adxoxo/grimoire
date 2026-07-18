@@ -201,3 +201,71 @@ def test_delete_node_cascades(tmp_path: Path):
         assert repo.delete_node(mem) == 0    # idempotent: already gone
     finally:
         repo.close()
+
+
+# ---------------------------------------------------------------------------
+# 7. re-ranker (local cross-encoder second stage, best-effort with graceful degradation)
+# ---------------------------------------------------------------------------
+
+from grimoire.providers.fake import FakeProvider  # noqa: E402
+from grimoire.rerank import Reranker  # noqa: E402
+
+
+class _StubReranker(Reranker):
+    """Returns a fixed score per passage index, so ordering is deterministic in tests."""
+
+    def __init__(self, scores: list[float]) -> None:
+        self._scores = scores
+
+    def scores(self, query: str, passages: list[str]) -> list[float]:
+        return self._scores[: len(passages)]
+
+
+class _BoomReranker(Reranker):
+    """Simulates the model failing to load / fastembed missing."""
+
+    def scores(self, query: str, passages: list[str]) -> list[float]:
+        raise RuntimeError("reranker unavailable")
+
+
+def _cands(n: int) -> list[dict]:
+    return [{"chunk_id": f"c{i}", "content": f"passage number {i}"} for i in range(n)]
+
+
+def _svc(tmp_path: Path, provider, reranker=None) -> KnowledgeService:
+    return KnowledgeService(Repository(tmp_path / "g.db"), provider, reranker)
+
+
+def test_rerank_reorders_by_score(tmp_path: Path, provider):
+    # c0/c1/c2 get scores 0.1/0.9/0.5 -> order c1, c2, c0.
+    svc = _svc(tmp_path, provider, _StubReranker([0.1, 0.9, 0.5]))
+    out = svc._rerank("q", _cands(3))
+    assert [c["chunk_id"] for c in out] == ["c1", "c2", "c0"]
+    assert out[0]["rerank_score"] == 0.9  # score attached for observability
+
+
+def test_rerank_keeps_all_candidates(tmp_path: Path, provider):
+    # Re-rank reorders but never drops candidates (full recall preserved).
+    svc = _svc(tmp_path, provider, _StubReranker([0.1, 0.9, 0.5]))
+    out = svc._rerank("q", _cands(3))
+    assert {c["chunk_id"] for c in out} == {"c0", "c1", "c2"}
+
+
+def test_rerank_degrades_on_model_error(tmp_path: Path, provider):
+    svc = _svc(tmp_path, provider, _BoomReranker())
+    cands = _cands(3)
+    assert svc._rerank("q", cands) == cands  # bi-encoder order preserved, no raise
+
+
+def test_rerank_noop_without_reranker(tmp_path: Path, provider):
+    # No reranker configured -> retrieve returns bi-encoder order untouched.
+    svc = _svc(tmp_path, provider, None)
+    cands = _cands(3)
+    assert svc._rerank("q", cands) == cands
+
+
+def test_rerank_degrades_on_score_count_mismatch(tmp_path: Path, provider):
+    # A reranker returning the wrong number of scores must not corrupt/reorder results.
+    svc = _svc(tmp_path, provider, _StubReranker([0.9]))  # 1 score for 3 candidates
+    cands = _cands(3)
+    assert svc._rerank("q", cands) == cands
