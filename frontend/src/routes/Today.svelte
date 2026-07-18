@@ -3,13 +3,15 @@
   import { flip } from 'svelte/animate'
   import { quintOut } from 'svelte/easing'
   import { api, planner, type Habit, type Task, type AreaGroup, type TodayData } from '../lib/api'
-  import { QUADRANT, type Quadrant, localDate } from '../lib/theme'
+  import { QUADRANT, type Quadrant } from '../lib/theme'
+  import { dayLabel } from '../lib/dates'
+  import { appState } from '../lib/appstate.svelte'
   import { liveRefresh } from '../lib/useLive.svelte'
   import { dur } from '../lib/motion.svelte'
   import { taskSend, taskReceive } from '../lib/planner-motion'
   import InlineEdit from '../components/planner/InlineEdit.svelte'
   import AddItemDialog from '../components/planner/AddItemDialog.svelte'
-  import PlannerChat from '../components/planner/PlannerChat.svelte'
+  import DayStrip from '../components/planner/DayStrip.svelte'
   import HabitDetail from '../components/planner/HabitDetail.svelte'
 
   const QUADRANT_ORDER: Quadrant[] = ['Q1', 'Q2', 'Q3', 'Q4']
@@ -29,9 +31,13 @@
   let detailHabit = $state<Habit | null>(null)
   let editingIds = $state<Set<string>>(new Set())
   let overQ = $state<Quadrant | null>(null)
-  const date = localDate()
+  // The viewed day, shared with Flow via the strip. Habits/streaks/weekly report are
+  // computed for it; the quadrant board itself is the one global backlog.
+  const date = $derived(appState.plannerDate)
+  const label = $derived(dayLabel(date))
 
   function load() {
+    appState.plannerVersion // reload after a transmute action
     planner.today(date).then((d) => (data = d)).catch((e) => (error = String(e)))
   }
   $effect(load)
@@ -47,7 +53,7 @@
   })
 
   function fmtDateline(): string {
-    return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase()
+    return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase()
   }
 
   function setEditing(id: string, on: boolean) {
@@ -234,11 +240,12 @@
 {:else if !data}
   <div class="min-h-screen flex items-center justify-center"><p class="font-headline-md text-headline-md text-text-tertiary animate-pulse">Consulting the grimoire...</p></div>
 {:else}
-  <main class="min-h-screen pb-40 flex flex-col items-center overflow-y-auto">
-    <div class="w-full max-w-5xl px-8 md:px-14">
-      <header class="py-md mt-2 flex justify-between items-center">
+  <main class="min-h-screen pb-24 flex flex-col items-center overflow-y-auto">
+    <div class="w-full max-w-5xl px-8 md:px-14 py-md">
+      <div class="mb-md"><DayStrip /></div>
+      <header class="pb-md flex justify-between items-center">
         <div>
-          <h1 class="font-headline-lg text-headline-lg text-rune-quest tracking-widest mb-0.5">Today</h1>
+          <h1 class="font-headline-lg text-headline-lg text-rune-quest tracking-widest mb-0.5 capitalize">{label}</h1>
           <p class="font-label-md text-label-md text-text-muted uppercase tracking-[0.2em]">{fmtDateline()}</p>
         </div>
         <div class="relative w-10 h-10 flex items-center justify-center text-primary opacity-70 overflow-hidden">
@@ -340,8 +347,6 @@
         </section>
       </div>
     </div>
-
-    <PlannerChat context={{ date }} onActed={load} />
 
     {#if dialog}
       <AddItemDialog kind={dialog.kind} defaultQuadrant={dialog.q ? goalDefaults[dialog.q] : undefined}

@@ -3,6 +3,7 @@
   import PillNav from './components/PillNav.svelte'
   import ScribeModal from './components/ScribeModal.svelte'
   import ScribeCapture from './components/ScribeCapture.svelte'
+  import TransmuteCapture from './components/planner/TransmuteCapture.svelte'
   import Home from './routes/Home.svelte'
   import Today from './routes/Today.svelte'
   import Flow from './routes/Flow.svelte'
@@ -43,12 +44,13 @@
   <PillNav />
   <!-- The home constellation is full-bleed under the floating pill; every other route
        reserves headroom so its heading is not hidden behind it. -->
-  <div class="min-w-0 {router.path === '/' ? '' : 'pt-20'}">
+  <div class="min-w-0 {router.path === '/' ? '' : 'pt-16'}">
     {#key router.path}
       {@const Route = resolved.component}
       <Route {...resolved.props} />
     {/key}
   </div>
   <ScribeCapture />
+  <TransmuteCapture />
   <ScribeModal />
 </div>

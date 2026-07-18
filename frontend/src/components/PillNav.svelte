@@ -1,6 +1,6 @@
 <script lang="ts">
   import { router, link } from '../lib/router.svelte'
-  import { openCapture } from '../lib/appstate.svelte'
+  import { openCapture, openTransmute } from '../lib/appstate.svelte'
   import { RUNE } from '../lib/theme'
 
   // The grimoire chrome in one floating pill: sigil, icon tabs, scribe. The 256px
@@ -14,6 +14,10 @@
   ]
 
   const isActive = (to: string) => (to === '/' ? router.path === '/' : router.path.startsWith(to))
+
+  // The CTA follows the surface: planner pages transmute thoughts into tasks and
+  // schedule edits; knowledge surfaces scribe them into nodes.
+  const onPlanner = $derived(router.path === '/today' || router.path === '/flow')
 </script>
 
 <nav
@@ -52,13 +56,25 @@
 
   <div class="w-px h-6 bg-border-subtle mx-1" aria-hidden="true"></div>
 
-  <button
-    onclick={openCapture}
-    title="Scribe a thought or attach a PDF / book"
-    aria-label="Scribe"
-    class="h-9 shrink-0 rounded-full border border-primary-container text-primary-container px-3 flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(212,169,63,0.3)] transition-all font-label-md text-label-md"
-  >
-    <span class="material-symbols-outlined text-[18px]">add</span>
-    <span class="hidden sm:inline">Scribe</span>
-  </button>
+  {#if onPlanner}
+    <button
+      onclick={openTransmute}
+      title="Transmute a thought into tasks or schedule changes"
+      aria-label="Transmute"
+      class="h-9 shrink-0 rounded-full border border-rune-entity/70 text-rune-entity px-3 flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(157,107,217,0.35)] transition-all font-label-md text-label-md"
+    >
+      <span class="material-symbols-outlined text-[18px]">auto_fix_high</span>
+      <span class="hidden sm:inline">Transmute</span>
+    </button>
+  {:else}
+    <button
+      onclick={openCapture}
+      title="Scribe a thought or attach a PDF / book"
+      aria-label="Scribe"
+      class="h-9 shrink-0 rounded-full border border-primary-container text-primary-container px-3 flex items-center gap-1.5 hover:shadow-[0_0_15px_rgba(212,169,63,0.3)] transition-all font-label-md text-label-md"
+    >
+      <span class="material-symbols-outlined text-[18px]">add</span>
+      <span class="hidden sm:inline">Scribe</span>
+    </button>
+  {/if}
 </nav>

@@ -3,21 +3,24 @@
   import { quintOut } from 'svelte/easing'
   import { planner, type Block, type FlowData, type PlanResult, type Task } from '../lib/api'
   import { localDate } from '../lib/theme'
+  import { dayLabel } from '../lib/dates'
+  import { appState } from '../lib/appstate.svelte'
   import { liveRefresh } from '../lib/useLive.svelte'
   import { dur } from '../lib/motion.svelte'
   import Timeline from '../components/planner/Timeline.svelte'
   import AnchorsPanel from '../components/planner/AnchorsPanel.svelte'
-  import PlannerChat from '../components/planner/PlannerChat.svelte'
+  import DayStrip from '../components/planner/DayStrip.svelte'
   import AddItemDialog from '../components/planner/AddItemDialog.svelte'
 
   const today = localDate()
-  // The day being viewed/planned. Every operation (plan, anchors, to-dos, generate)
-  // is scoped to it; the strip below switches between days.
-  let date = $state(localDate())
-  let weekOffset = $state(0)
+  // The day being viewed/planned, shared with the Today board via appState. Every
+  // operation here (plan, anchors, to-dos, generate) is scoped to it.
+  const date = $derived(appState.plannerDate)
 
   // Slot double-clicked on the timeline -> the ISO start for the create modal (null = closed).
   let createAt = $state<string | null>(null)
+  // Block clicked on the timeline -> its index for the detail modal (null = closed).
+  let openBlock = $state<number | null>(null)
 
   let flow = $state<FlowData | null>(null)
   let result = $state<PlanResult | null>(null)
@@ -31,18 +34,7 @@
   let error = $state<string | null>(null)
   let seededFor = ''
 
-  function addDays(d: string, n: number): string {
-    const dt = new Date(`${d}T00:00:00`)
-    dt.setDate(dt.getDate() + n)
-    return localDate(dt)
-  }
-  const strip = $derived(Array.from({ length: 7 }, (_, i) => addDays(today, i - 3 + weekOffset * 7)))
-  const dayLabel = $derived.by(() => {
-    if (date === today) return 'today'
-    if (date === addDays(today, -1)) return 'yesterday'
-    if (date === addDays(today, 1)) return 'tomorrow'
-    return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
-  })
+  const label = $derived(dayLabel(date))
 
   function combine(d: string, hhmm: string): Date {
     const [h, m] = hhmm.split(':').map(Number)
@@ -57,6 +49,7 @@
   }
 
   function load() {
+    appState.plannerVersion // reload after a transmute action
     const d = date
     planner.flow(d).then((f) => {
       flow = f
@@ -212,42 +205,12 @@
   const deferred = $derived(result?.deferred ?? [])
 </script>
 
-<main class="min-h-screen pb-48 overflow-y-auto">
-  <div class="max-w-[1200px] mx-auto px-6 md:px-margin py-lg mt-4 md:mt-8">
+<svelte:window onkeydown={(e) => e.key === 'Escape' && openBlock !== null && (openBlock = null)} />
+
+<main class="min-h-screen pb-24 overflow-y-auto">
+  <div class="max-w-5xl mx-auto px-8 md:px-14 py-md">
     <!-- day strip: switch between days; each keeps its own plan, anchors, and to-dos -->
-    <div class="flex items-center justify-center gap-1.5 mb-md flex-wrap">
-      <button onclick={() => weekOffset--} aria-label="Earlier days"
-        class="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:text-on-surface hover:bg-bg-surface transition-colors">
-        <span class="material-symbols-outlined text-[20px]">chevron_left</span>
-      </button>
-      {#each strip as d (d)}
-        {@const selected = date === d}
-        {@const dt = new Date(`${d}T00:00:00`)}
-        <button
-          onclick={() => (date = d)}
-          aria-pressed={selected}
-          class="w-12 py-1.5 rounded-lg flex flex-col items-center gap-0.5 border transition-colors {selected
-            ? 'border-rune-quest/60 bg-rune-quest/10'
-            : 'border-transparent hover:bg-bg-surface'}"
-        >
-          <span class="font-label-md text-[10px] uppercase tracking-wider {selected ? 'text-rune-quest' : 'text-text-tertiary'}">
-            {dt.toLocaleDateString(undefined, { weekday: 'short' })}
-          </span>
-          <span class="font-headline-sm text-headline-sm leading-none {selected ? 'text-primary' : 'text-text-muted'}">{dt.getDate()}</span>
-          <span class="w-1 h-1 rounded-full {d === today ? 'bg-rune-quest' : 'bg-transparent'}"></span>
-        </button>
-      {/each}
-      <button onclick={() => weekOffset++} aria-label="Later days"
-        class="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:text-on-surface hover:bg-bg-surface transition-colors">
-        <span class="material-symbols-outlined text-[20px]">chevron_right</span>
-      </button>
-      {#if date !== today}
-        <button onclick={() => { date = today; weekOffset = 0 }}
-          class="ml-2 px-3 py-1.5 rounded-full border border-border-default font-label-md text-label-md text-text-muted hover:text-rune-quest hover:border-rune-quest/50 transition-colors">
-          Today
-        </button>
-      {/if}
-    </div>
+    <div class="mb-md"><DayStrip /></div>
 
     <!-- day setup bar -->
     <div class="grimoire-card rounded-xl p-4 flex flex-wrap items-center gap-4 md:gap-6 mb-lg">
@@ -271,7 +234,7 @@
         <span class="material-symbols-outlined text-[18px]">refresh</span>Reflow from now
       </button>
       <button onclick={generate} disabled={busy} class="flex items-center gap-2 py-2 px-5 bg-rune-entity/20 text-rune-entity border border-rune-entity/50 rounded hover:bg-rune-entity hover:text-bg-page transition-all font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">
-        <span class="material-symbols-outlined text-[18px]">auto_awesome</span>{busy ? 'Weaving...' : `Generate ${dayLabel}`}
+        <span class="material-symbols-outlined text-[18px]">auto_awesome</span>{busy ? 'Weaving...' : `Generate ${label}`}
       </button>
     </div>
 
@@ -285,9 +248,9 @@
         </h2>
         {#if flow?.plan}
           <Timeline {blocks} windowStart={windowDates.start} windowEnd={windowDates.end}
-            {overlay} onMove={moveBlock} onRename={renameBlock} onDelete={deleteBlock}
+            {overlay} onMove={moveBlock} onOpen={(i) => (openBlock = i)}
             onInteractingChange={(v) => (interacting = v)} onCreateAt={(iso) => (createAt = iso)} />
-          <p class="font-body-sm text-body-sm text-text-tertiary mt-3 ml-14">double-click a slot to add a task · drag a block to reschedule · double-click a block to rename</p>
+          <p class="font-body-sm text-body-sm text-text-tertiary mt-3 ml-14">click a block for details · drag it to reschedule · double-click a slot to add a task</p>
         {:else}
           <div class="border border-dashed border-border-default rounded-xl py-20 text-center">
             <span class="material-symbols-outlined text-[40px] text-border-default mb-2">bedtime</span>
@@ -304,7 +267,7 @@
         <!-- the day's to-do list: list things onto a day, then generate its timetable -->
         <div class="grimoire-card rounded-lg p-3">
           <div class="flex justify-between items-baseline mb-2">
-            <h4 class="font-label-md text-label-md text-text-muted uppercase tracking-widest">To do {dayLabel}</h4>
+            <h4 class="font-label-md text-label-md text-text-muted uppercase tracking-widest">To do {label}</h4>
             <span class="font-label-md text-label-md text-text-tertiary">{dayTasks.filter((t) => t.status !== 'done').length} open</span>
           </div>
           <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
@@ -338,7 +301,7 @@
           <input
             bind:value={newTask}
             onkeydown={(e) => e.key === 'Enter' && addDayTask()}
-            placeholder="Add for {dayLabel}..."
+            placeholder="Add for {label}..."
             class="mt-2 w-full bg-bg-page border border-border-subtle rounded px-2.5 py-1.5 font-body-sm text-body-sm text-on-surface placeholder:text-text-tertiary outline-none focus:border-rune-quest/60 transition-colors"
           />
         </div>
@@ -406,10 +369,57 @@
       onClose={() => (createAt = null)} onCreated={load} onSchedule={pinTask} />
   {/if}
 
-  <PlannerChat
-    placeholder="Transmute thought to schedule..."
-    context={{ date, now: new Date().toISOString() }}
-    quickPrompts={['regenerate my day', 'add a 30m break', 'how long is my day']}
-    onActed={load}
-  />
+  {#if openBlock !== null && blocks[openBlock]}
+    {@const b = blocks[openBlock]}
+    <div
+      class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-[18vh] px-4"
+      onclick={(e) => e.target === e.currentTarget && (openBlock = null)}
+      role="presentation"
+      transition:fade={{ duration: dur(140) }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Block details"
+        transition:fly={{ y: 12, duration: dur(180), easing: quintOut }}
+        class="w-full max-w-sm bg-bg-panel border border-border-default rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.7)] p-5"
+      >
+        <div class="flex items-center justify-between mb-3">
+          <span class="font-label-md text-label-md uppercase tracking-widest text-text-muted">
+            {b.goal_block ? 'Apex goal' : b.type}{b.locked ? ' · pinned' : ''}
+          </span>
+          <button onclick={() => (openBlock = null)} aria-label="Close"
+            class="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:text-on-surface hover:bg-bg-surface transition-colors">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+        <input
+          value={b.title}
+          aria-label="Block title"
+          onkeydown={(e) => {
+            if (e.key === 'Enter' && openBlock !== null) {
+              renameBlock(openBlock, (e.currentTarget as HTMLInputElement).value)
+              openBlock = null
+            }
+          }}
+          onblur={(e) => openBlock !== null && renameBlock(openBlock, (e.currentTarget as HTMLInputElement).value)}
+          class="w-full bg-bg-page border border-border-default rounded px-3 py-2 font-body-md text-body-md text-on-surface outline-none focus:border-rune-quest transition-colors"
+        />
+        <p class="font-body-sm text-body-sm text-text-muted mt-3 flex items-center gap-2">
+          <span class="material-symbols-outlined text-[16px]">schedule</span>
+          {new Date(b.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+          - {new Date(b.end).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+          <span class="text-text-tertiary">({Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 60000)}m)</span>
+        </p>
+        <div class="flex justify-end mt-4">
+          <button
+            onclick={() => { if (openBlock !== null) { deleteBlock(openBlock); openBlock = null } }}
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border-default text-text-muted hover:text-status-error hover:border-status-error/50 transition-colors font-label-md text-label-md"
+          >
+            <span class="material-symbols-outlined text-[16px]">delete</span>Remove from day
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </main>

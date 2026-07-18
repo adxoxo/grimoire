@@ -4,8 +4,8 @@
   import { planner, type ChatResponse } from '../../lib/api'
   import { dur } from '../../lib/motion.svelte'
 
-  // The in-tab capture bar (Groq + Llama). Fixed to the bottom of Today and Flow.
-  // Captures/edits items by sentence; analytical asks are redirected to Claude Desktop.
+  // The transmute form (Groq + Llama): captures/edits planner items by sentence;
+  // analytical asks are redirected to Claude Desktop. Rendered inside TransmuteCapture.
   let {
     placeholder = 'Transmute thought to task...',
     context,
@@ -41,8 +41,9 @@
   const okActions = $derived(last ? last.actions.filter((a) => (a.result as { ok?: boolean }).ok) : [])
 </script>
 
-<div class="fixed bottom-0 md:bottom-md left-0 right-0 md:left-64 flex justify-center px-4 pointer-events-none z-50 pb-4">
-  <div class="w-full max-w-2xl pointer-events-auto">
+<!-- Inline form: lives inside the transmute dialog (it used to be a fixed bottom bar). -->
+<div class="w-full">
+  <div class="w-full">
     {#if quickPrompts && quickPrompts.length > 0}
       <div class="flex gap-2 justify-center mb-2 flex-wrap">
         {#each quickPrompts as p (p)}
