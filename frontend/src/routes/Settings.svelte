@@ -120,6 +120,8 @@
           bind:value={apiToken}
           onblur={saveToken}
           placeholder="Paste the token"
+          aria-label="API token"
+          autocomplete="off"
           class="mt-3 w-full max-w-sm bg-bg-page border border-border-default rounded px-3 py-2 font-body-sm text-body-sm text-on-surface outline-none focus:border-rune-quest"
         />
       </div>

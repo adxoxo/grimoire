@@ -86,9 +86,12 @@
   let fontReady = false
   let rafPending = false
 
-  // Focus fade state (render path, non-reactive). Out-of-scope nodes ease to 5% alpha
-  // over FADE_MS instead of vanishing, so refocusing reads as spatial movement.
-  const FADE_MS = 300
+  // Focus fade state (render path, non-reactive). Out-of-scope nodes ease to 10% alpha
+  // over FADE_MS instead of vanishing, so refocusing reads as spatial movement. The
+  // canvas tweens live outside CSS, so reduced-motion is honoured here explicitly.
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const FADE_MS = reducedMotion ? 0 : 300
+  const GLIDE_MS = reducedMotion ? 0 : 450
   const OUT_ALPHA = 0.1
   let focusSet: Set<string> | null = null
   let fadeFrom = new Map<string, number>() // alpha factor per node when the fade began
@@ -96,6 +99,7 @@
 
   function focusFactor(id: string, now: number): number {
     const target = !focusSet || focusSet.has(id) ? 1 : OUT_ALPHA
+    if (FADE_MS === 0) return target // reduced motion: no tween, land instantly
     const from = fadeFrom.get(id) ?? target
     const t = Math.min(1, (now - fadeStart) / FADE_MS)
     return from + (target - from) * t
@@ -569,7 +573,7 @@
     const t0 = performance.now()
     cancelAnimationFrame(glideRaf)
     const step = (t: number) => {
-      const p = Math.min(1, (t - t0) / 450)
+      const p = GLIDE_MS === 0 ? 1 : Math.min(1, (t - t0) / GLIDE_MS)
       const e = 1 - Math.pow(1 - p, 3) // ease-out cubic
       cam.x = sx + (tx - sx) * e
       cam.y = sy + (ty - sy) * e

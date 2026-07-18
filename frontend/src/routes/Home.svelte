@@ -216,8 +216,9 @@
           <button
             onclick={() => (mode = m)}
             disabled={m === 'focus' && !focusId}
-            class="px-3 py-1 font-label-md text-label-md transition-colors disabled:opacity-40"
-            style="background:{mode === m ? 'rgba(212,169,63,0.14)' : 'transparent'};color:{mode === m ? '#e3d3a0' : '#6b6789'}"
+            aria-pressed={mode === m}
+            class="px-3 py-1.5 font-label-md text-label-md transition-colors disabled:opacity-40"
+            style="background:{mode === m ? 'rgba(212,169,63,0.14)' : 'transparent'};color:{mode === m ? '#e3d3a0' : '#9b96b8'}"
           >
             {m === 'focus' ? 'Focus' : 'All'}
           </button>
