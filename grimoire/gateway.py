@@ -147,6 +147,30 @@ def kb_ingest_document(path: str, project: str | None = None) -> dict:
         return result
 
 
+@mcp.tool
+def kb_recluster() -> dict:
+    """Recompute graph communities (Louvain) and persist community ids on nodes.
+    Run on demand after the graph has grown, not on every write."""
+    from grimoire.cluster import recluster
+
+    with tracer.start_as_current_span("kb_recluster"):
+        with _service() as svc:
+            return recluster(svc.repo)
+
+
+@mcp.tool
+def kb_export_markdown(output_dir: str) -> dict:
+    """Export the store as an Obsidian vault: one markdown file per node with
+    wikilinks per edge. One-way and idempotent; the export dir is disposable."""
+    from grimoire.export import export_store
+
+    with tracer.start_as_current_span("kb_export_markdown") as span:
+        with _service() as svc:
+            result = export_store(svc.repo, output_dir)
+        span.set_attribute("grimoire.nodes_exported", result["nodes"])
+        return result
+
+
 # ---------------------------------------------------------------------------
 # Planner tools (the Today + Flow subsystem). Claude Desktop gets the FULL surface:
 # CRUD on every type, the weekly report, project-task queries, day generation/reflow,

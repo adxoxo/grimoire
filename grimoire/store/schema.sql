@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS nodes (
                                   -- memory/docs: unreviewed|reviewed|error
   meta TEXT,                      -- JSON, type-specific metadata
   context_summary TEXT,          -- projects: the living summary; others: optional
+  community_id INTEGER,          -- Louvain community (kb_recluster); NULL = unclustered
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

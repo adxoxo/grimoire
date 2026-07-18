@@ -196,6 +196,8 @@
       hiddenTypes={hidden}
       {focusIds}
       focusCenterId={mode === 'focus' ? focusId : null}
+      colorByCommunity={mode === 'all'}
+      communityLabels={graph.communities}
       onSelect={handleSelect}
     />
 

@@ -2,7 +2,7 @@
   import { untrack } from 'svelte'
   import { forceCollide, forceLink, forceManyBody, forceSimulation } from 'd3'
   import { api, type Graph, type GraphNode } from '../lib/api'
-  import { RUNE, edgeColor, type NodeType } from '../lib/theme'
+  import { RUNE, communityColor, edgeColor, type NodeType } from '../lib/theme'
 
   interface SimNode extends GraphNode {
     x: number
@@ -46,6 +46,8 @@
     hiddenTypes,
     focusIds = null,
     focusCenterId = null,
+    colorByCommunity = false,
+    communityLabels,
     onSelect,
   }: {
     graph: Graph
@@ -58,6 +60,10 @@
     focusIds?: Set<string> | null
     // The node the camera should glide to when focus changes (null = leave the camera).
     focusCenterId?: string | null
+    // Global view: tint nodes by Louvain community instead of rune type, and label
+    // each cluster at its centroid. Focus mode keeps the four rune colours.
+    colorByCommunity?: boolean
+    communityLabels?: Record<string, { label: string }>
     onSelect: (node: GraphNode) => void
   } = $props()
 
@@ -94,28 +100,34 @@
     return from + (target - from) * t
   }
 
-  // Precomputed soft-glow sprites, one per rune colour, drawn additively. Building the
+  // Precomputed soft-glow sprites, one per colour, drawn additively and built lazily
+  // (rune colours in focus view, community colours in the global view). Building the
   // gradient once (not per node per frame) is what keeps the glow cheap.
-  const halo: Partial<Record<NodeType, HTMLCanvasElement>> = {}
+  const halos = new Map<string, HTMLCanvasElement>()
 
   function rgba(hex: string, a: number): string {
     const n = parseInt(hex.slice(1), 16)
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
   }
 
-  function buildHalos() {
-    for (const type of Object.keys(RUNE) as NodeType[]) {
-      const c = document.createElement('canvas')
-      c.width = c.height = 64
-      const g = c.getContext('2d')!
+  function haloFor(color: string): HTMLCanvasElement {
+    let sprite = halos.get(color)
+    if (!sprite) {
+      sprite = document.createElement('canvas')
+      sprite.width = sprite.height = 64
+      const g = sprite.getContext('2d')!
       const grad = g.createRadialGradient(32, 32, 4, 32, 32, 32)
-      grad.addColorStop(0, rgba(RUNE[type].color, 0.55))
-      grad.addColorStop(1, rgba(RUNE[type].color, 0))
+      grad.addColorStop(0, rgba(color, 0.55))
+      grad.addColorStop(1, rgba(color, 0))
       g.fillStyle = grad
       g.fillRect(0, 0, 64, 64)
-      halo[type] = c
+      halos.set(color, sprite)
     }
+    return sprite
   }
+
+  const nodeColor = (n: SimNode) =>
+    colorByCommunity && n.community_id != null ? communityColor(n.community_id) : RUNE[n.type].color
 
   function scheduleDraw() {
     if (rafPending) return
@@ -158,7 +170,8 @@
     const nowT = performance.now()
     const fading = nowT - fadeStart < FADE_MS
 
-    // edges
+    // edges — same-community edges take the community colour in the global view, so
+    // clusters read as coherent threads
     ctx.lineWidth = 1.2
     for (const l of links) {
       const s = l.source
@@ -166,13 +179,40 @@
       if (!s || !t || !vis(s) || !vis(t)) continue
       const focus = Math.min(focusFactor(s.id, nowT), focusFactor(t.id, nowT))
       ctx.globalAlpha = (matched(s) && matched(t) ? 0.3 : 0.07) * focus
-      ctx.strokeStyle = edgeColor(s.type, t.type)
+      const sameCommunity =
+        colorByCommunity && s.community_id != null && s.community_id === t.community_id
+      ctx.strokeStyle = sameCommunity ? communityColor(s.community_id!) : edgeColor(s.type, t.type)
       ctx.beginPath()
       ctx.moveTo(s.x, s.y)
       ctx.lineTo(t.x, t.y)
       ctx.stroke()
     }
     ctx.globalAlpha = 1
+
+    // community labels at cluster centroids (global view only), behind the nodes
+    if (colorByCommunity && communityLabels) {
+      const acc = new Map<number, { x: number; y: number; count: number }>()
+      for (const n of nodes) {
+        if (!vis(n) || n.community_id == null) continue
+        const a = acc.get(n.community_id) ?? { x: 0, y: 0, count: 0 }
+        a.x += n.x
+        a.y += n.y
+        a.count++
+        acc.set(n.community_id, a)
+      }
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.font = '600 15px "Spectral", sans-serif'
+      for (const [cid, a] of acc) {
+        if (a.count < 3) continue // singleton clusters would just be noise
+        const label = communityLabels[String(cid)]?.label
+        if (!label) continue
+        ctx.globalAlpha = 0.4
+        ctx.fillStyle = communityColor(cid)
+        ctx.fillText(label, a.x / a.count, a.y / a.count - 46)
+      }
+      ctx.globalAlpha = 1
+    }
 
     // additive glow pass
     ctx.globalCompositeOperation = 'lighter'
@@ -182,8 +222,8 @@
       const hot = n.id === selectedId || n.id === hoverId
       const size = r * (hot ? 4.4 : 3.4)
       ctx.globalAlpha = (hot ? 0.9 : 0.5) * focusFactor(n.id, nowT)
-      const sprite = halo[n.type]
-      if (sprite) ctx.drawImage(sprite, n.x - size / 2, n.y - size / 2, size, size)
+      const sprite = haloFor(nodeColor(n))
+      ctx.drawImage(sprite, n.x - size / 2, n.y - size / 2, size, size)
     }
     ctx.globalCompositeOperation = 'source-over'
     ctx.globalAlpha = 1
@@ -196,7 +236,7 @@
       const r = RADIUS[n.type]
       const sel = n.id === selectedId
       const dim = !matched(n)
-      const color = RUNE[n.type].color
+      const color = nodeColor(n)
       const focus = focusFactor(n.id, nowT)
       ctx.globalAlpha = (dim ? 0.18 : 1) * focus
 
@@ -351,7 +391,6 @@
   $effect(() => {
     if (!canvas) return
     ctx = canvas.getContext('2d')
-    buildHalos()
 
     // Resize only re-rasterizes and redraws — the layout is frozen, so nothing reflows.
     const ro = new ResizeObserver(() => {
@@ -523,12 +562,13 @@
     scheduleDraw()
   })
 
-  // Restyle (selection / highlight / filter) is just a redraw — no relayout.
+  // Restyle (selection / highlight / filter / colour mode) is just a redraw — no relayout.
   $effect(() => {
     selectedId
     highlightType
     filterText
     hiddenTypes
+    colorByCommunity
     scheduleDraw()
   })
 </script>

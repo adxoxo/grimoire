@@ -66,8 +66,19 @@ class Repository:
     # ---- lifecycle -------------------------------------------------------
 
     def initialize(self) -> None:
-        """Create the schema if absent. Idempotent."""
+        """Create the schema if absent, then apply additive migrations. Idempotent."""
         self._conn.executescript(SCHEMA_PATH.read_text())
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Additive column migrations for stores created before a schema change
+        (CREATE TABLE IF NOT EXISTS never alters an existing table)."""
+        def cols(table: str) -> set[str]:
+            return {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
+
+        with self._conn:
+            if "community_id" not in cols("nodes"):
+                self._conn.execute("ALTER TABLE nodes ADD COLUMN community_id INTEGER")
 
     def close(self) -> None:
         self._conn.close()
@@ -110,13 +121,14 @@ class Repository:
         """All nodes, optionally filtered by type. Used by the constellation graph."""
         if type is not None:
             rows = self._conn.execute(
-                "SELECT id, type, title, status, updated_at FROM nodes WHERE type = ?"
-                " ORDER BY updated_at DESC",
+                "SELECT id, type, title, status, community_id, updated_at FROM nodes"
+                " WHERE type = ? ORDER BY updated_at DESC",
                 (type,),
             ).fetchall()
         else:
             rows = self._conn.execute(
-                "SELECT id, type, title, status, updated_at FROM nodes ORDER BY updated_at DESC"
+                "SELECT id, type, title, status, community_id, updated_at FROM nodes"
+                " ORDER BY updated_at DESC"
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -135,6 +147,16 @@ class Repository:
             r["node_id"]: {"x": r["x"], "y": r["y"], "pinned": bool(r["pinned"])}
             for r in rows
         }
+
+    def set_communities(self, assignment: dict[str, int]) -> int:
+        """Persist community ids (node_id -> community). Nodes absent from the
+        assignment keep their previous value. Returns rows updated."""
+        with self._conn:
+            for node_id, cid in assignment.items():
+                self._conn.execute(
+                    "UPDATE nodes SET community_id = ? WHERE id = ?", (cid, node_id)
+                )
+        return len(assignment)
 
     def save_layout(self, positions: list[dict[str, Any]]) -> int:
         """Upsert a batch of node positions. Each item: {node_id, x, y, pinned?}.

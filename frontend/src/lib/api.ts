@@ -5,6 +5,7 @@ export interface GraphNode {
   type: NodeType
   title: string
   status: string | null
+  community_id?: number | null
   updated_at: string
 }
 
@@ -24,6 +25,7 @@ export interface Graph {
   nodes: GraphNode[]
   edges: GraphEdge[]
   layout?: Record<string, NodePosition>
+  communities?: Record<string, { label: string }>
 }
 
 export interface LayoutPosition {
@@ -131,6 +133,7 @@ export interface NewNode {
 export const api = {
   graph: () => get<Graph>('/api/graph'),
   saveLayout: (positions: LayoutPosition[]) => put<{ saved: number }>('/api/layout', positions),
+  recluster: () => post<{ communities: number; nodes: number }>('/api/maintenance/recluster'),
   project: (name: string) => get<Project>(`/api/projects/${encodeURIComponent(name)}`),
   node: (id: string) => get<Record<string, unknown>>(`/api/nodes/${encodeURIComponent(id)}`),
   review: () => get<{ items: ReviewItem[] }>('/api/review'),

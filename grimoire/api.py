@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from grimoire.cluster import community_labels, recluster
 from grimoire.compaction import compact_project, consolidate_context
 from grimoire.config import settings
 from grimoire.distill import capture_session
@@ -81,7 +82,15 @@ def graph() -> dict[str, object]:
     {x, y, pinned}; the client restores these so the graph opens settled and only
     simulates nodes without a saved position."""
     with _repo() as repo:
-        return {"nodes": repo.list_nodes(), "edges": repo.list_edges(), "layout": repo.get_layout()}
+        nodes = repo.list_nodes()
+        edges = repo.list_edges()
+        labels = community_labels(nodes, edges)
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "layout": repo.get_layout(),
+            "communities": {str(cid): {"label": title} for cid, title in labels.items()},
+        }
 
 
 class LayoutPosition(BaseModel):
@@ -331,6 +340,13 @@ def run_reembed() -> dict:
     """Re-embed every chunk through the provider (the model-change maintenance path)."""
     with _repo() as repo:
         return {"reembedded": reembed_all(repo, _provider)}
+
+
+@app.post("/api/maintenance/recluster")
+def run_recluster() -> dict:
+    """Recompute Louvain communities over the graph and persist them on nodes."""
+    with _repo() as repo:
+        return recluster(repo)
 
 
 # ---- serve the built dashboard (production / Docker) ----

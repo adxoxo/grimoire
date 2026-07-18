@@ -34,6 +34,17 @@
         return `Re-embedded ${r.reembedded} chunk(s).`
       },
     },
+    {
+      key: 'recluster',
+      title: 'Community detection',
+      icon: 'hub',
+      blurb: 'Recompute Louvain communities over the constellation. The global graph view colours its clusters from this.',
+      run: async () => {
+        const r = await api.recluster()
+        refreshGraph()
+        return `Assigned ${r.nodes} node(s) to ${r.communities} communit(ies).`
+      },
+    },
   ]
 
   let running = $state<string | null>(null)

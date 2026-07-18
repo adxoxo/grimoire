@@ -27,6 +27,24 @@ export function edgeColor(srcType: NodeType, dstType: NodeType): string {
   return RUNE[PARENT_RANK[srcType] >= PARENT_RANK[dstType] ? srcType : dstType].color
 }
 
+// Community palette for the GLOBAL constellation view only (focus mode keeps the four
+// rune colours). Derived from the aquryu greens plus muted companions — no rainbow.
+export const COMMUNITY_PALETTE = [
+  '#4F7A52', // leaf green
+  '#7BB77E', // glow green
+  '#5b8dd9', // arcane blue
+  '#d4a93f', // gold
+  '#9d6bd9', // violet
+  '#d98b4a', // ember
+  '#5FA8A0', // muted teal
+  '#B76B7B', // muted rose
+]
+
+export function communityColor(id: number): string {
+  const n = COMMUNITY_PALETTE.length
+  return COMMUNITY_PALETTE[((id % n) + n) % n]
+}
+
 // The Eisenhower quadrants reuse the four rune colours (the design ceiling), so the
 // planner needs no new palette: Q1 gold, Q2 arcane blue, Q3 ember, Q4 violet.
 export type Quadrant = 'Q1' | 'Q2' | 'Q3' | 'Q4'
