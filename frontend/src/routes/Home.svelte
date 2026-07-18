@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api, type Graph, type GraphNode } from '../lib/api'
   import { RUNE, type NodeType } from '../lib/theme'
-  import { router } from '../lib/router.svelte'
+  import { router, link } from '../lib/router.svelte'
   import { appState, refreshGraph } from '../lib/appstate.svelte'
   import { liveRefresh } from '../lib/useLive.svelte'
   import { fly } from 'svelte/transition'
@@ -82,10 +82,6 @@
     return seen
   })
 
-  const focusTitle = $derived(
-    focusId && graph ? (graph.nodes.find((n) => n.id === focusId)?.title ?? null) : null,
-  )
-
   // Clicking a node opens its panel and, in focus mode, recenters the local view on it
   // (the Obsidian local-graph behaviour).
   function handleSelect(node: GraphNode) {
@@ -152,45 +148,94 @@
   }
 </script>
 
-<main class="relative w-full h-[calc(100vh-3.5rem)] md:h-screen bg-bg-page overflow-hidden">
-  <!-- Search overlay + filter -->
-  <div class="absolute top-6 md:top-8 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 z-30">
-    <form
-      onsubmit={runSearch}
-      class="relative bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex items-center px-4 py-3 group focus-within:border-rune-quest focus-within:shadow-[0_0_20px_rgba(212,169,63,0.2)] transition-all duration-300"
-    >
-      <span class="material-symbols-outlined text-text-muted group-focus-within:text-rune-quest transition-colors mr-3">search</span>
-      <input
-        bind:value={query}
-        class="bg-transparent border-none text-on-surface placeholder:text-text-tertiary w-full font-body-md text-body-md outline-none"
-        placeholder="Search the grimoire..."
-        type="text"
-      />
-      <button
-        type="button"
-        onclick={() => (showFilter = !showFilter)}
-        class="material-symbols-outlined text-text-muted hover:text-primary ml-3 transition-colors"
-        style="color:{hidden.size ? '#d4a93f' : ''}"
-        aria-label="Filter node types"
-        aria-expanded={showFilter}
+<main class="relative w-full h-screen bg-bg-page overflow-hidden">
+  <!-- Chrome row under the pill nav: search, then the focus slider + depth -->
+  <div class="absolute top-[4.75rem] inset-x-0 px-4 z-30 flex flex-wrap items-start justify-center gap-3 pointer-events-none">
+    <div class="w-full max-w-xl pointer-events-auto">
+      <form
+        onsubmit={runSearch}
+        class="relative bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-full shadow-[0_4px_30px_rgba(0,0,0,0.5)] flex items-center px-4 py-2.5 group focus-within:border-rune-quest focus-within:shadow-[0_0_20px_rgba(212,169,63,0.2)] transition-all duration-300"
       >
-        tune
-      </button>
-    </form>
+        <span class="material-symbols-outlined text-text-muted group-focus-within:text-rune-quest transition-colors mr-3">search</span>
+        <input
+          bind:value={query}
+          class="bg-transparent border-none text-on-surface placeholder:text-text-tertiary w-full font-body-md text-body-md outline-none"
+          placeholder="Search the grimoire..."
+          type="text"
+        />
+        <button
+          type="button"
+          onclick={() => (showFilter = !showFilter)}
+          class="material-symbols-outlined text-text-muted hover:text-primary ml-3 transition-colors"
+          style="color:{hidden.size ? '#d4a93f' : ''}"
+          aria-label="Filter node types"
+          aria-expanded={showFilter}
+        >
+          tune
+        </button>
+      </form>
 
-    {#if showFilter}
-      <div transition:fly={{ y: -8, duration: dur(180) }} class="mt-2 ml-auto w-56 bg-bg-panel border border-border-default rounded-lg p-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)] float-right">
-        <p class="font-label-md text-label-md text-text-muted uppercase tracking-widest mb-2">Show node types</p>
-        {#each ALL_TYPES as t (t)}
-          {@const rune = RUNE[t]}
-          {@const visible = !hidden.has(t)}
-          <button onclick={() => toggleType(t)} class="w-full flex items-center gap-2 py-1.5 text-left" style="opacity:{visible ? 1 : 0.4}">
-            <span class="material-symbols-outlined text-[18px]" style="color:{rune.color}">
-              {visible ? 'check_box' : 'check_box_outline_blank'}
-            </span>
-            <span class="font-body-sm text-body-sm text-on-surface">{rune.nav}</span>
-          </button>
-        {/each}
+      {#if showFilter}
+        <div transition:fly={{ y: -8, duration: dur(180) }} class="mt-2 ml-auto w-56 bg-bg-panel border border-border-default rounded-lg p-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)] float-right">
+          <p class="font-label-md text-label-md text-text-muted uppercase tracking-widest mb-2">Show node types</p>
+          {#each ALL_TYPES as t (t)}
+            {@const rune = RUNE[t]}
+            {@const visible = !hidden.has(t)}
+            <button onclick={() => toggleType(t)} class="w-full flex items-center gap-2 py-1.5 text-left" style="opacity:{visible ? 1 : 0.4}">
+              <span class="material-symbols-outlined text-[18px]" style="color:{rune.color}">
+                {visible ? 'check_box' : 'check_box_outline_blank'}
+              </span>
+              <span class="font-body-sm text-body-sm text-on-surface">{rune.nav}</span>
+            </button>
+          {/each}
+          <p class="font-label-md text-label-md text-text-muted uppercase tracking-widest mt-3 mb-2">Emphasize</p>
+          <div class="flex gap-1.5">
+            {#each ALL_TYPES as t (t)}
+              {@const rune = RUNE[t]}
+              {@const on = highlightType === t}
+              <a
+                href={link(on ? '/' : `/?type=${t}`)}
+                title={rune.nav}
+                aria-label="Emphasize {rune.nav}"
+                class="w-8 h-8 rounded-full border flex items-center justify-center transition-colors"
+                style="border-color:{on ? rune.color : '#29263f'};background:{on ? rune.color + '22' : 'transparent'}"
+              >
+                <span class="material-symbols-outlined text-[16px]" style="color:{rune.color}">{rune.icon}</span>
+              </a>
+            {/each}
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    {#if graph && graph.nodes.length > 0}
+      <!-- Focus slider pill: the local-view / whole-constellation switch, plus depth -->
+      <div class="pointer-events-auto flex items-center gap-2 rounded-full bg-bg-panel/80 backdrop-blur-md border border-border-default p-1 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+        <div class="relative flex">
+          <div
+            aria-hidden="true"
+            class="absolute top-0 bottom-0 w-1/2 rounded-full bg-rune-quest/15 border border-rune-quest/40 transition-[left] duration-200"
+            style="left:{mode === 'focus' ? '0%' : '50%'}"
+          ></div>
+          {#each ['focus', 'all'] as const as m (m)}
+            <button
+              onclick={() => (mode = m)}
+              disabled={m === 'focus' && !focusId}
+              aria-pressed={mode === m}
+              class="relative w-16 py-1.5 rounded-full font-label-md text-label-md transition-colors disabled:opacity-40"
+              style="color:{mode === m ? '#e3d3a0' : '#9b96b8'}"
+            >
+              {m === 'focus' ? 'Focus' : 'All'}
+            </button>
+          {/each}
+        </div>
+        {#if mode === 'focus'}
+          <label class="flex items-center gap-2 pr-3 pl-1 font-label-md text-label-md text-text-muted">
+            Depth
+            <input type="range" min="1" max="3" step="1" bind:value={depth} class="w-16" style="accent-color:#d4a93f" />
+            <span class="text-on-surface w-3 text-center">{depth}</span>
+          </label>
+        {/if}
       </div>
     {/if}
   </div>
@@ -208,33 +253,6 @@
       communityLabels={graph.communities}
       onSelect={handleSelect}
     />
-
-    <!-- Focus controls: local view vs the whole constellation, plus hop depth -->
-    <div class="absolute bottom-6 left-6 z-30 flex items-center gap-3 bg-bg-panel/80 backdrop-blur-md border border-border-default rounded-lg px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
-      <div class="flex rounded-md overflow-hidden border border-border-default">
-        {#each ['focus', 'all'] as const as m (m)}
-          <button
-            onclick={() => (mode = m)}
-            disabled={m === 'focus' && !focusId}
-            aria-pressed={mode === m}
-            class="px-3 py-1.5 font-label-md text-label-md transition-colors disabled:opacity-40"
-            style="background:{mode === m ? 'rgba(212,169,63,0.14)' : 'transparent'};color:{mode === m ? '#e3d3a0' : '#9b96b8'}"
-          >
-            {m === 'focus' ? 'Focus' : 'All'}
-          </button>
-        {/each}
-      </div>
-      {#if mode === 'focus'}
-        <label class="flex items-center gap-2 font-label-md text-label-md text-text-muted">
-          Depth
-          <input type="range" min="1" max="3" step="1" bind:value={depth} class="w-20" style="accent-color:#d4a93f" />
-          <span class="text-on-surface w-3 text-center">{depth}</span>
-        </label>
-        {#if focusTitle}
-          <span class="font-body-sm text-body-sm text-text-tertiary max-w-44 truncate">{focusTitle}</span>
-        {/if}
-      {/if}
-    </div>
   {/if}
 
   {#if selected}

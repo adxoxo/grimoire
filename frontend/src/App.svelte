@@ -1,6 +1,6 @@
 <script lang="ts">
   import { router, match } from './lib/router.svelte'
-  import SideNav from './components/SideNav.svelte'
+  import PillNav from './components/PillNav.svelte'
   import ScribeModal from './components/ScribeModal.svelte'
   import Home from './routes/Home.svelte'
   import Today from './routes/Today.svelte'
@@ -38,9 +38,11 @@
   })
 </script>
 
-<div class="min-h-screen flex bg-bg-page text-on-surface font-body-md">
-  <SideNav />
-  <div class="flex-1 md:ml-64 min-w-0 pt-14 md:pt-0">
+<div class="min-h-screen bg-bg-page text-on-surface font-body-md">
+  <PillNav />
+  <!-- The home constellation is full-bleed under the floating pill; every other route
+       reserves headroom so its heading is not hidden behind it. -->
+  <div class="min-w-0 {router.path === '/' ? '' : 'pt-20'}">
     {#key router.path}
       {@const Route = resolved.component}
       <Route {...resolved.props} />

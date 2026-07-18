@@ -57,7 +57,7 @@
   }
 </script>
 
-<div class="min-h-screen overflow-y-auto px-margin py-lg max-w-3xl">
+<div class="min-h-screen overflow-y-auto px-margin py-lg max-w-3xl mx-auto">
   <a href={link('/')} class="font-label-md text-label-md text-text-muted hover:text-primary uppercase tracking-widest inline-flex items-center gap-1">
     <span class="material-symbols-outlined text-[16px]">arrow_back</span> Constellation
   </a>
