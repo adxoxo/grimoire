@@ -74,6 +74,7 @@ def test_gateway_tools_dispatch(tmp_path: Path, monkeypatch):
     assert index["id"]
     assert "error" not in call("kb_classify_node", mem["node_id"], index["id"])
     assert "error" not in call("kb_move_node", mem["node_id"], index["id"])
+    assert "error" not in call("kb_autoclassify", mem["node_id"])
     assert "items" in call("kb_inbox")
     assert "domains" in call("kb_list_scopes")
     assert "error" not in call("kb_refresh_summary", index["id"], summary_text="smoke summary")
