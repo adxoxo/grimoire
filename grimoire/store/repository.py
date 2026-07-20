@@ -562,6 +562,55 @@ class Repository:
             frontier = nxt
         return list(visited)
 
+    def neighbors(
+        self,
+        node_ids: list[str],
+        per_node: int = 6,
+        min_confidence: float = 0.0,
+        exclude: set[str] | None = None,
+    ) -> dict[str, list[dict]]:
+        """1-hop undirected neighbors for each seed node id, with edge metadata.
+        Returns {seed_id: [{node_id, title, type, rel, confidence, provenance}, ...]}.
+        Skips invalidated edges and invalidated neighbor nodes. Drops neighbors in
+        `exclude` and any that equal the seed. Caps each seed's list to `per_node`,
+        highest confidence first.
+        """
+        exclude = exclude or set()
+        out: dict[str, list[dict]] = {}
+        for seed in node_ids:
+            rows = self._conn.execute(
+                "SELECT e.rel, e.confidence, e.provenance,"
+                " n.id AS node_id, n.title AS title, n.type AS type"
+                " FROM edges e"
+                " JOIN nodes n ON n.id = (CASE WHEN e.src = ? THEN e.dst ELSE e.src END)"
+                " WHERE (e.src = ? OR e.dst = ?)"
+                "   AND e.invalidated_at IS NULL"
+                "   AND n.invalidated_at IS NULL"
+                "   AND e.confidence >= ?",
+                (seed, seed, seed, min_confidence),
+            ).fetchall()
+            items: list[dict] = []
+            for r in rows:
+                nid = r["node_id"]
+                if nid == seed or nid in exclude:
+                    continue
+                items.append({
+                    "node_id": nid, "title": r["title"], "type": r["type"],
+                    "rel": r["rel"], "confidence": r["confidence"],
+                    "provenance": r["provenance"],
+                })
+            items.sort(key=lambda x: x["confidence"], reverse=True)
+            # A neighbor reached by more than one edge appears once, at its best edge.
+            seen: set[str] = set()
+            deduped: list[dict] = []
+            for it in items:
+                if it["node_id"] in seen:
+                    continue
+                seen.add(it["node_id"])
+                deduped.append(it)
+            out[seed] = deduped[:per_node]
+        return out
+
     def scored_chunks(
         self, query_embedding: list[float], node_ids: list[str] | None = None
     ) -> list[dict[str, Any]]:

@@ -33,7 +33,8 @@ def main() -> None:
                 f"context {'refreshed' if ctx else 'unchanged'}"
             )
         if do_reembed:
-            print(f"re-embedded {reembed_all(repo, svc.provider)} chunks")
+            counts = reembed_all(repo, svc.provider)
+            print(f"re-embedded {counts['chunks']} chunks and {counts['scopes']} scope summaries")
     finally:
         repo.close()
 

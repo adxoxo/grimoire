@@ -163,8 +163,8 @@ def test_reembed_all_rebuilds_vectors(repo: Repository, provider):
     text = "chunk to be re-embedded"
     repo.add_chunk(doc_id, 0, text, provider.embed(text))
 
-    n = reembed_all(repo, provider)
-    assert n == 1
+    result = reembed_all(repo, provider)
+    assert result["chunks"] == 1
     hits = repo.search(provider.embed(text), k=1)
     assert hits[0]["content"] == text  # still retrievable after re-embed
 

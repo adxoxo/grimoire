@@ -82,7 +82,10 @@ def kb_retrieve(
                 query, project=project, scope=scope, route=route, k=k,
                 rerank_candidates=settings.rerank_candidates, mode=mode,
                 route_threshold=settings.route_threshold, route_top_k=settings.route_top_k,
-                k_min=settings.retrieve_k_min,
+                k_min=settings.retrieve_k_min, project_max_hops=settings.project_max_hops,
+                expand_related=settings.expand_related,
+                related_per_hit=settings.related_per_hit,
+                related_min_confidence=settings.related_min_confidence,
             )
         span.set_attribute("grimoire.candidate_chunks", len(out["results"]))
         span.set_attribute("grimoire.routing_mode", out["routing"].get("mode", ""))
@@ -98,6 +101,18 @@ def kb_retrieve(
                     "domain": h.get("scope", {}).get("domain"),
                 }
                 for h in out["results"]
+            ],
+            "related": [
+                {
+                    "node_id": it["node_id"],
+                    "title": it["title"],
+                    "type": it["type"],
+                    "rel": it["rel"],
+                    "confidence": it["confidence"],
+                    "index": it.get("scope", {}).get("index"),
+                    "domain": it.get("scope", {}).get("domain"),
+                }
+                for it in out.get("related", [])
             ],
             "routing": out["routing"],
         }
@@ -207,17 +222,6 @@ def kb_history(node_id: str) -> dict:
 
 
 @mcp.tool
-def kb_recluster() -> dict:
-    """Recompute graph communities (Louvain) and persist community ids on nodes.
-    Run on demand after the graph has grown, not on every write."""
-    from grimoire.cluster import recluster
-
-    with tracer.start_as_current_span("kb_recluster"):
-        with _service() as svc:
-            return recluster(svc.repo)
-
-
-@mcp.tool
 def kb_export_markdown(output_dir: str) -> dict:
     """Export the store as an Obsidian vault: one markdown file per node with
     wikilinks per edge. One-way and idempotent; the export dir is disposable."""
@@ -288,6 +292,20 @@ def kb_inbox(limit: int = 50) -> dict:
 
 
 @mcp.tool
+def kb_autoclassify(node_id: str | None = None) -> dict:
+    """Auto-file inbox nodes into their best index (an LLM chooses over vector routing).
+    With a node_id, files that one node; with none, files the whole inbox. Degrades to
+    the vector path when the LLM is unavailable, and only files a confident match."""
+    with tracer.start_as_current_span("kb_autoclassify") as span:
+        span.set_attribute("grimoire.node_id", node_id or "")
+        with _service() as svc:
+            if node_id:
+                return svc.auto_classify_node(
+                    node_id, autofile_threshold=settings.autofile_threshold)
+            return svc.auto_classify_inbox(autofile_threshold=settings.autofile_threshold)
+
+
+@mcp.tool
 def kb_list_scopes() -> dict:
     """The taxonomy: domains with their indexes, member-node counts, and which scopes
     have a stale (or missing) routing summary."""
@@ -308,9 +326,9 @@ def kb_refresh_summary(scope_id: str, summary_text: str | None = None) -> dict:
 
 @mcp.tool
 def kb_propose_taxonomy(sample_titles: int = 10) -> dict:
-    """Bootstrap step 2: sample each Louvain community (run kb_recluster first if the
-    graph has grown) so the taxonomy can be named in conversation. Returns communities
-    largest-first with sample member titles and type breakdowns; writes nothing."""
+    """Bootstrap step 2: recluster the graph, then sample each Louvain community so the
+    taxonomy can be named in conversation. Returns communities largest-first with sample
+    member titles and type breakdowns; writes nothing but the fresh community ids."""
     from grimoire.taxonomy import propose_taxonomy
 
     with tracer.start_as_current_span("kb_propose_taxonomy"):

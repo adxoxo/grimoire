@@ -253,12 +253,15 @@ def test_bootstrap_applies_taxonomy(repo, provider):
     svc = KnowledgeService(repo, provider)
     a = repo.add_node("memory", "yt a")
     b = repo.add_node("memory", "yt b")
-    repo.set_communities({a: 0, b: 0})
+    # propose_taxonomy reclusters first, so give the two nodes a real edge and let Louvain
+    # group them into one community rather than relying on hand-set community ids.
+    repo.link_nodes(a, b, "references")
     proposal = propose_taxonomy(repo)
-    assert proposal["communities"][0]["community_id"] == 0
+    cid = proposal["communities"][0]["community_id"]
+    assert proposal["communities"][0]["size"] == 2
 
     plan = {"domains": [{"title": "Content automation", "indexes": [
-        {"title": "YouTube", "community_ids": [0]}]}]}
+        {"title": "YouTube", "community_ids": [cid]}]}]}
     stats = apply_taxonomy(svc, plan)
     assert stats["nodes_filed"] == 2
     assert repo.get_node(a)["index_id"] is not None
@@ -311,3 +314,50 @@ def _raw_node_count(db_path: Path) -> int:
         return c.execute("SELECT count(*) FROM nodes WHERE invalidated_at IS NULL").fetchone()[0]
     finally:
         c.close()
+
+
+# ---------------------------------------------------------------------------
+# 10. Auto-classification of inbox items (LLM over vector routing)
+# ---------------------------------------------------------------------------
+
+def test_auto_classify_files_on_strong_vector(repo, provider):
+    # Force the vector path (use_llm=False). FakeProvider gives identical text an
+    # identical vector, so the node routes to the index with similarity ~ 1.0.
+    svc = KnowledgeService(repo, provider)
+    dom = repo.add_scope("domain", "Content")
+    idx = repo.add_scope("index", "YouTube", domain_id=dom)
+    repo.set_scope_summary(idx, "YouTube thumbnails guide",
+                           provider.embed("YouTube thumbnails guide"))
+    node_id = repo.add_node("document", "YouTube thumbnails guide", status="unreviewed")
+
+    out = svc.auto_classify_node(node_id, use_llm=False)
+    assert out == {"node_id": node_id, "filed": True, "index_id": idx,
+                   "index": "YouTube", "domain": "Content",
+                   "score": out["score"], "reason": "high vector confidence"}
+    assert out["score"] >= 0.75
+    assert repo.get_node(node_id)["index_id"] == idx
+
+
+def test_auto_classify_no_indexes(repo, provider):
+    svc = KnowledgeService(repo, provider)
+    node_id = repo.add_node("document", "orphan note")
+    out = svc.auto_classify_node(node_id, use_llm=False)
+    assert out["filed"] is False
+    assert out["index_id"] is None
+    assert out["reason"] == "no indexes exist yet"
+
+
+def test_auto_classify_inbox_splits_filed_and_skipped(repo, provider):
+    svc = KnowledgeService(repo, provider)
+    dom = repo.add_scope("domain", "Content")
+    idx = repo.add_scope("index", "YouTube", domain_id=dom)
+    repo.set_scope_summary(idx, "YouTube thumbnails guide",
+                           provider.embed("YouTube thumbnails guide"))
+    match = repo.add_node("document", "YouTube thumbnails guide")
+    nomatch = repo.add_node("document", "unrelated firmware driver notes")
+
+    out = svc.auto_classify_inbox(use_llm=False)
+    assert out["filed_count"] == 1 and out["skipped_count"] == 1
+    assert {r["node_id"] for r in out["filed"]} == {match}
+    assert {r["node_id"] for r in out["skipped"]} == {nomatch}
+    assert out["skipped"][0]["reason"] == "no confident match, needs review"
