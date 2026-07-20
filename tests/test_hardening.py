@@ -56,9 +56,10 @@ def test_gateway_tools_dispatch(tmp_path: Path, monkeypatch):
     got = call("kb_get_project", "Smoke")
     assert got["title"] == "Smoke" and "linked" in got
 
-    assert isinstance(call("kb_retrieve", "anything", k=3), list)
+    retrieved = call("kb_retrieve", "anything", k=3)
+    assert isinstance(retrieved, dict) and isinstance(retrieved["results"], list)
     kw = call("kb_retrieve", "GRIMOIRE_SMOKE_MARKER", k=3, mode="keyword")
-    assert isinstance(kw, list) and kw
+    assert isinstance(kw, dict) and kw["results"]
 
     mem = call("kb_write_memory", "Smoke", "we decided things", decisions=["ship it"])
     assert mem["node_id"]
@@ -68,6 +69,25 @@ def test_gateway_tools_dispatch(tmp_path: Path, monkeypatch):
 
     clustered = call("kb_recluster")
     assert set(clustered) == {"communities", "nodes"}
+
+    # taxonomy layer
+    domain = call("kb_create_domain", "Smoke domain")
+    assert domain["id"]
+    index = call("kb_create_index", domain["id"], "Smoke index")
+    assert index["id"]
+    assert "error" not in call("kb_classify_node", mem["node_id"], index["id"])
+    assert "error" not in call("kb_move_node", mem["node_id"], index["id"])
+    assert "items" in call("kb_inbox")
+    assert "domains" in call("kb_list_scopes")
+    assert "error" not in call("kb_refresh_summary", index["id"], summary_text="smoke summary")
+    proposal = call("kb_propose_taxonomy")
+    assert "communities" in proposal
+    bootstrapped = call(
+        "kb_bootstrap_taxonomy",
+        {"domains": [{"title": "Bootstrap domain", "indexes": []}]},
+        generate_summaries=False,
+    )
+    assert "error" not in bootstrapped
 
     exported = call("kb_export_markdown", str(tmp_path / "vault"))
     assert exported["nodes"] >= 2
