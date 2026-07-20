@@ -53,27 +53,54 @@ def _service() -> Iterator[KnowledgeService]:
 
 
 @mcp.tool
-def kb_retrieve(query: str, project: str | None = None, k: int = 10, mode: str = "hybrid") -> list[dict]:
-    """Retrieve the most relevant chunks for a query, optionally narrowed to a project.
-    mode: 'hybrid' (BM25 + vector fused with RRF, the default) | 'vector' | 'keyword'."""
+def kb_retrieve(
+    query: str,
+    project: str | None = None,
+    k: int = 10,
+    mode: str = "hybrid",
+    route: bool = True,
+    domain_id: str | None = None,
+    index_id: str | None = None,
+) -> dict:
+    """Retrieve the most relevant chunks for a query with two-stage scoped retrieval.
+
+    Routing: with no project/scope and route=True (default), the query is routed to the
+    best-matching index(es) by summary similarity and searched inside them, falling back
+    to global search if nothing matches or too few hits come back. Pass `index_id` or
+    `domain_id` to pin the partition explicitly (skips routing); pass `project` for the
+    legacy graph-narrowed path. `mode`: 'hybrid' (default) | 'vector' | 'keyword'.
+
+    Returns {"results": [...], "routing": {mode, matched_indexes, ...}} so the caller can
+    see whether the answer came from a scope or a global fallback."""
     with tracer.start_as_current_span("kb_retrieve") as span:
         span.set_attribute("grimoire.project", project or "")
         span.set_attribute("grimoire.k", k)
         span.set_attribute("grimoire.mode", mode)
+        scope = {"domain_id": domain_id, "index_id": index_id} if (domain_id or index_id) else None
         with _service() as svc:
-            hits = svc.retrieve(query, project=project, k=k,
-                                rerank_candidates=settings.rerank_candidates, mode=mode)
-        span.set_attribute("grimoire.candidate_chunks", len(hits))
-        return [
-            {
-                "title": h["title"],
-                "type": h["type"],
-                "node_id": h["node_id"],
-                "score": round(h["score"], 4),
-                "content": h["content"],
-            }
-            for h in hits
-        ]
+            out = svc.retrieve_scoped(
+                query, project=project, scope=scope, route=route, k=k,
+                rerank_candidates=settings.rerank_candidates, mode=mode,
+                route_threshold=settings.route_threshold, route_top_k=settings.route_top_k,
+                k_min=settings.retrieve_k_min,
+            )
+        span.set_attribute("grimoire.candidate_chunks", len(out["results"]))
+        span.set_attribute("grimoire.routing_mode", out["routing"].get("mode", ""))
+        return {
+            "results": [
+                {
+                    "title": h["title"],
+                    "type": h["type"],
+                    "node_id": h["node_id"],
+                    "score": round(h["score"], 4),
+                    "content": h["content"],
+                    "index": h.get("scope", {}).get("index"),
+                    "domain": h.get("scope", {}).get("domain"),
+                }
+                for h in out["results"]
+            ],
+            "routing": out["routing"],
+        }
 
 
 @mcp.tool
@@ -101,13 +128,15 @@ def kb_write_memory(
 
 @mcp.tool
 def kb_get_project(name: str) -> dict:
-    """Return a project hub: its node, living context, and one hop of linked nodes."""
+    """Return a project hub: its node, living context, one hop of linked nodes, and its
+    domain/index breadcrumb in the taxonomy."""
     with tracer.start_as_current_span("kb_get_project") as span:
         span.set_attribute("grimoire.project", name)
         with _service() as svc:
             proj = svc.repo.get_project(name)
-        if proj is None:
-            return {"error": f"project not found: {name}"}
+            if proj is None:
+                return {"error": f"project not found: {name}"}
+            proj["breadcrumb"] = svc.repo.node_breadcrumb(proj["id"])
         span.set_attribute("grimoire.candidate_chunks", len(proj["linked"]))
         return proj
 
@@ -130,23 +159,39 @@ def kb_upsert_project(
 @mcp.tool
 def kb_delete_node(node_id: str) -> dict:
     """Hard-delete a node (quest line, tome, chronicle, or rune) and everything that
-    depends on it: its edges, chunks, vectors, and raw turns. Irreversible."""
+    depends on it: its edges, chunks, vectors, and raw turns. Irreversible.
+
+    If the id is a domain or index scope, its member nodes are detached back to the
+    inbox instead of deleted (deleting a scope never cascades node deletion)."""
     with tracer.start_as_current_span("kb_delete_node") as span:
         span.set_attribute("grimoire.node_id", node_id)
         with _service() as svc:
-            if svc.repo.get_node(node_id) is None:
+            node = svc.repo.get_node(node_id)
+            if node is None:
                 return {"error": f"node not found: {node_id}"}
+            if node.get("node_kind") in ("domain", "index"):
+                return {"scope": node_id, **svc.repo.delete_scope(node_id)}
             return {"deleted": svc.repo.delete_node(node_id), "node_id": node_id}
 
 
 @mcp.tool
 def kb_ingest_document(path: str, project: str | None = None) -> dict:
-    """Ingest a document (PDF/HTML/markdown) into the store, linked to a project."""
+    """Ingest a document (PDF/HTML/markdown) into the store, linked to a project.
+
+    The document is also routed into the taxonomy: if it clearly matches one index it is
+    auto-filed; otherwise it lands unclassified in the inbox with a proposal (see the
+    returned `classification` block) for confirmation via kb_classify_node."""
     with tracer.start_as_current_span("kb_ingest_document") as span:
         span.set_attribute("grimoire.project", project or "")
         with _service() as svc:
-            result = svc.ingest_document(path, project=project)
+            result = svc.ingest_document(
+                path, project=project,
+                autofile_threshold=settings.autofile_threshold,
+                route_top_k=settings.route_top_k,
+            )
         span.set_attribute("grimoire.chunks_written", result["chunks"])
+        span.set_attribute("grimoire.classification",
+                           (result.get("classification") or {}).get("status", ""))
         return result
 
 
@@ -186,6 +231,108 @@ def kb_export_markdown(output_dir: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Taxonomy tools (V2): the two-level scope hierarchy above content nodes, its
+# human-in-the-loop classification inbox, and routing-summary maintenance.
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool
+def kb_create_domain(title: str, why: str | None = None) -> dict:
+    """Create a domain: a broad area of life or work (e.g. 'Content automation'). The
+    top level of the taxonomy; indexes live under it."""
+    with tracer.start_as_current_span("kb_create_domain"):
+        with _service() as svc:
+            return {"id": svc.repo.add_scope("domain", title, why=why),
+                    "node_kind": "domain", "title": title}
+
+
+@mcp.tool
+def kb_create_index(domain_id: str, title: str, why: str | None = None) -> dict:
+    """Create an index under a domain: a sub-topic partition (e.g. 'YouTube'). This is
+    the unit of retrieval scoping and classification."""
+    with tracer.start_as_current_span("kb_create_index"):
+        with _service() as svc:
+            if svc.repo.get_scope(domain_id) is None:
+                return {"error": f"domain not found: {domain_id}"}
+            return {"id": svc.repo.add_scope("index", title, domain_id=domain_id, why=why),
+                    "node_kind": "index", "title": title, "domain_id": domain_id}
+
+
+@mcp.tool
+def kb_classify_node(node_id: str, index_id: str) -> dict:
+    """File a content node into an index (sets its index + domain consistently). Use this
+    to confirm an ingest proposal or to file an inbox node."""
+    with tracer.start_as_current_span("kb_classify_node"):
+        with _service() as svc:
+            out = svc.repo.classify_node(node_id, index_id)
+            return out or {"error": f"node not found: {node_id}"}
+
+
+@mcp.tool
+def kb_move_node(node_id: str, index_id: str) -> dict:
+    """Re-file a node into a different index (alias of kb_classify_node)."""
+    with tracer.start_as_current_span("kb_move_node"):
+        with _service() as svc:
+            out = svc.repo.classify_node(node_id, index_id)
+            return out or {"error": f"node not found: {node_id}"}
+
+
+@mcp.tool
+def kb_inbox(limit: int = 50) -> dict:
+    """List unclassified content nodes awaiting a home, newest first, each with its
+    stored classification proposal (if any) for confirmation via kb_classify_node."""
+    with tracer.start_as_current_span("kb_inbox"):
+        with _service() as svc:
+            return {"items": svc.repo.unclassified_nodes(limit=limit),
+                    "total": svc.repo.unclassified_count()}
+
+
+@mcp.tool
+def kb_list_scopes() -> dict:
+    """The taxonomy: domains with their indexes, member-node counts, and which scopes
+    have a stale (or missing) routing summary."""
+    with tracer.start_as_current_span("kb_list_scopes"):
+        with _service() as svc:
+            return svc.repo.list_scopes(stale_after=settings.summary_stale_after)
+
+
+@mcp.tool
+def kb_refresh_summary(scope_id: str, summary_text: str | None = None) -> dict:
+    """Regenerate a domain/index routing summary and re-embed it. Prefer passing
+    client-authored `summary_text` (3 to 6 sentences: what lives here, key themes,
+    representative entities); omit it to have the server draft one from members."""
+    with tracer.start_as_current_span("kb_refresh_summary"):
+        with _service() as svc:
+            return svc.refresh_summary(scope_id, summary_text=summary_text)
+
+
+@mcp.tool
+def kb_propose_taxonomy(sample_titles: int = 10) -> dict:
+    """Bootstrap step 2: sample each Louvain community (run kb_recluster first if the
+    graph has grown) so the taxonomy can be named in conversation. Returns communities
+    largest-first with sample member titles and type breakdowns; writes nothing."""
+    from grimoire.taxonomy import propose_taxonomy
+
+    with tracer.start_as_current_span("kb_propose_taxonomy"):
+        with _service() as svc:
+            return propose_taxonomy(svc.repo, sample_titles=sample_titles)
+
+
+@mcp.tool
+def kb_bootstrap_taxonomy(plan: dict, generate_summaries: bool = True) -> dict:
+    """Bootstrap steps 4 to 5: create the confirmed domains/indexes, backfill every
+    community member into its index, and generate + embed each scope's routing summary.
+
+    `plan` = {"domains": [{"title", "why"?, "indexes": [{"title", "community_ids": [...],
+    "why"?}]}]}. Nodes in communities you leave out stay in the inbox for manual triage."""
+    from grimoire.taxonomy import apply_taxonomy
+
+    with tracer.start_as_current_span("kb_bootstrap_taxonomy"):
+        with _service() as svc:
+            return apply_taxonomy(svc, plan, generate_summaries=generate_summaries)
+
+
+# ---------------------------------------------------------------------------
 # Planner tools (the Today + Flow subsystem). Claude Desktop gets the FULL surface:
 # CRUD on every type, the weekly report, project-task queries, day generation/reflow,
 # and the urgency sweep. (The in-tab Groq agent gets only a capped slice; see
@@ -219,6 +366,9 @@ def kb_today(date: str | None = None) -> dict:
     from datetime import datetime, timezone
     d = date or datetime.now(timezone.utc).date().isoformat()
     with tracer.start_as_current_span("kb_today"):
+        with _service() as svc:
+            inbox = svc.repo.unclassified_count()
+            stale = svc.repo.list_scopes(stale_after=settings.summary_stale_after)["stale_count"]
         with _planner() as repo:
             _goals.ensure_default_areas(repo)
             day = datetime.fromisoformat(d).date()
@@ -229,6 +379,8 @@ def kb_today(date: str | None = None) -> dict:
                 "goals": _goals.goals_by_area(repo),
                 "weekly": _habits.weekly_report(repo, today=day),
                 "estimate": _tasks.estimate_total_time(repo),
+                "inbox": inbox,
+                "stale_summaries": stale,
             }
 
 

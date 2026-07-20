@@ -9,6 +9,8 @@
   import Flow from './routes/Flow.svelte'
   import ProjectHub from './routes/ProjectHub.svelte'
   import Sanctum from './routes/Sanctum.svelte'
+  import Inbox from './routes/Inbox.svelte'
+  import Galaxy from './routes/Galaxy.svelte'
   import TomeReader from './routes/TomeReader.svelte'
   import Settings from './routes/Settings.svelte'
   import Placeholder from './routes/Placeholder.svelte'
@@ -25,8 +27,10 @@
     { pattern: '/', component: Home },
     { pattern: '/today', component: Today },
     { pattern: '/flow', component: Flow },
+    { pattern: '/galaxy', component: Galaxy },
     { pattern: '/project/:name', component: ProjectHub, props: (p) => ({ name: p.name }) },
     { pattern: '/sanctum', component: Sanctum },
+    { pattern: '/inbox', component: Inbox },
     { pattern: '/tome/:id', component: TomeReader, props: (p) => ({ id: p.id }) },
     { pattern: '/settings', component: Settings },
   ]

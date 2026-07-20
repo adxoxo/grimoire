@@ -6,6 +6,10 @@ export interface GraphNode {
   title: string
   status: string | null
   community_id?: number | null
+  // V2 taxonomy: scope rows carry node_kind 'domain'|'index'; content rows 'node'.
+  node_kind?: 'domain' | 'index' | 'node'
+  domain_id?: string | null
+  index_id?: string | null
   updated_at: string
 }
 
@@ -81,6 +85,53 @@ export interface SearchHit {
   type: NodeType
   score: number
   content: string
+  index?: string | null
+  domain?: string | null
+  scope?: { index_id?: string | null; index?: string | null; domain_id?: string | null; domain?: string | null }
+}
+
+export interface Routing {
+  mode: 'scoped' | 'global' | 'global_fallback' | 'project'
+  matched_indexes?: { index_id: string; index: string; score: number }[]
+  matched_domain?: { domain_id: string; domain: string; score: number } | null
+  reason?: string
+  project?: string
+}
+
+// V2 taxonomy: the two scope levels above content nodes.
+export interface ClassificationProposal {
+  proposed: { domain: string | null; domain_id: string | null; index: string; index_id: string }
+  confidence: number
+  alternatives: ({ index: string; index_id: string; confidence: number } | { option: string })[]
+}
+
+export interface IndexScope {
+  id: string
+  title: string
+  summary: string | null
+  summary_updated_at: string | null
+  node_count: number
+  stale: boolean
+}
+
+export interface DomainScope extends IndexScope {
+  indexes: IndexScope[]
+}
+
+export interface ScopeTree {
+  domains: DomainScope[]
+  unclassified: number
+  stale_count: number
+}
+
+export interface InboxItem {
+  id: string
+  type: NodeType
+  title: string
+  status: string | null
+  context_summary: string | null
+  updated_at: string
+  proposal: ClassificationProposal | null
 }
 
 async function get<T>(url: string): Promise<T> {
@@ -129,10 +180,33 @@ export const api = {
   review: () => get<{ items: ReviewItem[] }>('/api/review'),
   markReviewed: (id: string) => post<{ node_id: string; status: string }>(`/api/nodes/${encodeURIComponent(id)}/review`),
   document: (id: string) => get<Document>(`/api/documents/${encodeURIComponent(id)}`),
-  search: (q: string, project?: string) =>
-    get<{ results: SearchHit[] }>(
-      `/api/search?q=${encodeURIComponent(q)}${project ? `&project=${encodeURIComponent(project)}` : ''}`,
+  search: (q: string, opts: { project?: string; domainId?: string; indexId?: string; route?: boolean } = {}) => {
+    const p = new URLSearchParams({ q })
+    if (opts.project) p.set('project', opts.project)
+    if (opts.domainId) p.set('domain_id', opts.domainId)
+    if (opts.indexId) p.set('index_id', opts.indexId)
+    if (opts.route === false) p.set('route', 'false')
+    return get<{ results: SearchHit[]; routing: Routing }>(`/api/search?${p.toString()}`)
+  },
+  // --- V2 taxonomy: scopes, the classification inbox, summaries ---
+  scopes: () => get<ScopeTree>('/api/scopes'),
+  inbox: (limit = 50) => get<{ items: InboxItem[]; total: number }>(`/api/inbox?limit=${limit}`),
+  classifyNode: (id: string, indexId: string) =>
+    post<{ node_id: string; index_id: string; domain_id: string }>(
+      `/api/nodes/${encodeURIComponent(id)}/classify`, { index_id: indexId },
     ),
+  createDomain: (title: string, why?: string) =>
+    post<{ id: string; node_kind: 'domain'; title: string }>('/api/scopes/domain', { title, why }),
+  createIndex: (domainId: string, title: string, why?: string) =>
+    post<{ id: string; node_kind: 'index'; title: string; domain_id: string }>(
+      '/api/scopes/index', { domain_id: domainId, title, why },
+    ),
+  refreshSummary: (scopeId: string, summaryText?: string) =>
+    post<{ scope_id: string; summary: string; embedded: boolean }>(
+      `/api/scopes/${encodeURIComponent(scopeId)}/refresh`, { summary_text: summaryText },
+    ),
+  deleteScope: (id: string) =>
+    del<{ scope: string; detached: number; removed_scopes: number }>(`/api/scopes/${encodeURIComponent(id)}`),
   createNode: (node: NewNode) => post<{ id: string; type: string; title: string }>('/api/nodes', node),
   scribe: (message: string) =>
     post<{ id: string; type: NodeType; title: string; project?: string }>('/api/scribe', { message }),

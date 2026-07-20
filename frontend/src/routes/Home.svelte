@@ -25,6 +25,41 @@
 
   const highlightType = $derived((router.query.type as NodeType | undefined) ?? null)
 
+  // A scope drill-down from the Galaxy: /?index=<id> or /?domain=<id> isolates that
+  // partition's member stars. Reuses focus mode, so out-of-scope nodes fade and their
+  // cross-scope edges dim, exactly the association-layer treatment the spec asks for.
+  const scopeSel = $derived.by(() => {
+    if (!graph) return null
+    const indexId = router.query.index
+    const domainId = router.query.domain
+    if (indexId) {
+      const node = graph.nodes.find((n) => n.id === indexId)
+      return {
+        kind: 'index' as const, id: indexId, title: node?.title ?? 'index',
+        domainId: node?.domain_id ?? null,
+        members: new Set(graph.nodes.filter((n) => n.index_id === indexId).map((n) => n.id)),
+      }
+    }
+    if (domainId) {
+      const node = graph.nodes.find((n) => n.id === domainId)
+      return {
+        kind: 'domain' as const, id: domainId, title: node?.title ?? 'domain', domainId,
+        members: new Set(graph.nodes.filter((n) => n.domain_id === domainId).map((n) => n.id)),
+      }
+    }
+    return null
+  })
+
+  const scopeDomainTitle = $derived.by(() =>
+    graph && scopeSel?.domainId ? (graph.nodes.find((n) => n.id === scopeSel!.domainId)?.title ?? null) : null,
+  )
+
+  // The constellation renders content nodes only; domain/index scope rows are navigated
+  // via the Galaxy and carry no rune colour.
+  const contentGraph = $derived.by(() =>
+    graph ? { ...graph, nodes: graph.nodes.filter((n) => (n.node_kind ?? 'node') === 'node') } : null,
+  )
+
   // Focus mode shows everything until the user clicks a node - nothing is auto-chosen.
   // If the focused node vanished (deleted elsewhere), zoom back out to the whole graph.
   $effect(() => {
@@ -240,17 +275,32 @@
     </div>
   </div>
 
-  {#if graph && graph.nodes.length > 0}
+  {#if scopeSel}
+    <div class="fixed left-4 top-[4.75rem] xl:top-4 z-40 flex items-center gap-1.5 rounded-full bg-bg-panel/85 backdrop-blur-md border border-border-default px-3 py-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.4)] font-label-md text-label-md">
+      <a href={link('/galaxy')} class="text-text-muted hover:text-primary uppercase tracking-widest">Galaxy</a>
+      {#if scopeSel.kind === 'index' && scopeDomainTitle}
+        <span class="text-text-tertiary">/</span>
+        <a href={link(`/?domain=${scopeSel.domainId}`)} class="text-text-muted hover:text-primary">{scopeDomainTitle}</a>
+      {/if}
+      <span class="text-text-tertiary">/</span>
+      <span class="text-primary">{scopeSel.title}</span>
+      <a href={link('/')} class="ml-1 text-text-muted hover:text-primary flex items-center" title="Clear filter" aria-label="Clear scope filter">
+        <span class="material-symbols-outlined text-[16px]">close</span>
+      </a>
+    </div>
+  {/if}
+
+  {#if contentGraph && contentGraph.nodes.length > 0}
     <Constellation
-      {graph}
+      graph={contentGraph}
       selectedId={selected?.id ?? null}
       {highlightType}
       filterText={query}
       hiddenTypes={hidden}
-      {focusIds}
-      focusCenterId={mode === 'focus' ? focusId : null}
-      colorByCommunity={mode === 'all'}
-      communityLabels={graph.communities}
+      focusIds={scopeSel ? scopeSel.members : focusIds}
+      focusCenterId={scopeSel ? null : (mode === 'focus' ? focusId : null)}
+      colorByCommunity={mode === 'all' && !scopeSel}
+      communityLabels={graph?.communities}
       onSelect={handleSelect}
     />
   {/if}

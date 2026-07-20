@@ -156,20 +156,25 @@ def node(node_id: str) -> dict:
 
 @app.delete("/api/nodes/{node_id}")
 def delete_node(node_id: str) -> dict:
-    """Hard-delete a node and its dependents (edges, chunks, vectors, raw turns)."""
+    """Hard-delete a node and its dependents (edges, chunks, vectors, raw turns). A
+    domain/index scope instead detaches its members to the inbox (never cascades)."""
     with _repo() as repo:
-        if repo.get_node(node_id) is None:
+        node = repo.get_node(node_id)
+        if node is None:
             raise HTTPException(status_code=404, detail="node not found")
+        if node.get("node_kind") in ("domain", "index"):
+            return {"scope": node_id, **repo.delete_scope(node_id)}
         return {"deleted": repo.delete_node(node_id), "node_id": node_id}
 
 
 @app.get("/api/projects/{name}")
 def project(name: str) -> dict:
-    """Project hub: the node, its living context, and one hop of linked nodes."""
+    """Project hub: the node, its living context, one hop of linked nodes, and breadcrumb."""
     with _repo() as repo:
         found = repo.get_project(name)
         if found is None:
             raise HTTPException(status_code=404, detail="project not found")
+        found["breadcrumb"] = repo.node_breadcrumb(found["id"])
         return found
 
 
@@ -208,21 +213,34 @@ def document(node_id: str) -> dict:
 
 
 @app.get("/api/search")
-def search(q: str, project: str | None = None, k: int = 10, mode: str = "hybrid") -> dict:
-    """Full retrieve path: graph-narrow (optional project) then hybrid BM25 + vector
-    fusion (or 'vector' / 'keyword' via mode). Vector legs need the embedding provider
-    (Ollama) reachable; keyword mode works without it."""
+def search(
+    q: str,
+    project: str | None = None,
+    k: int = 10,
+    mode: str = "hybrid",
+    route: bool = True,
+    domain_id: str | None = None,
+    index_id: str | None = None,
+) -> dict:
+    """Full retrieve path with two-stage scoped retrieval: an explicit project graph-
+    narrows (legacy), an explicit domain_id/index_id pins the partition, otherwise the
+    query auto-routes to the best index(es) and falls back to global. Returns results
+    plus a `routing` block. Vector legs need Ollama; keyword mode works without it."""
+    scope = {"domain_id": domain_id, "index_id": index_id} if (domain_id or index_id) else None
     with _repo() as repo:
         try:
-            hits = KnowledgeService(repo, _provider, _reranker).retrieve(
-                q, project=project, k=k, rerank_candidates=settings.rerank_candidates, mode=mode,
+            out = KnowledgeService(repo, _provider, _reranker).retrieve_scoped(
+                q, project=project, scope=scope, route=route, k=k,
+                rerank_candidates=settings.rerank_candidates, mode=mode,
+                route_threshold=settings.route_threshold, route_top_k=settings.route_top_k,
+                k_min=settings.retrieve_k_min,
             )
         except Exception as exc:  # noqa: BLE001 - surfaced to the client as 503
             raise HTTPException(
                 status_code=503,
                 detail=f"search needs the embedding model running: {exc}",
             ) from exc
-        return {"query": q, "results": hits}
+        return {"query": q, "results": out["results"], "routing": out["routing"]}
 
 
 # ---- n8n capture webhook (Phase 4): one endpoint, two payload types ----
@@ -386,6 +404,99 @@ def run_recluster() -> dict:
     """Recompute Louvain communities over the graph and persist them on nodes."""
     with _repo() as repo:
         return recluster(repo)
+
+
+# ---- taxonomy: scopes, the classification inbox, summaries (V2) ----
+
+
+class NewDomain(BaseModel):
+    title: str
+    why: str | None = None
+
+
+class NewIndex(BaseModel):
+    domain_id: str
+    title: str
+    why: str | None = None
+
+
+class ClassifyBody(BaseModel):
+    index_id: str
+
+
+class RefreshSummaryBody(BaseModel):
+    summary_text: str | None = None
+
+
+@app.get("/api/scopes")
+def scopes() -> dict:
+    """The taxonomy: domains with their indexes, member counts, and summary freshness."""
+    with _repo() as repo:
+        return repo.list_scopes(stale_after=settings.summary_stale_after)
+
+
+@app.post("/api/scopes/domain")
+def create_domain(payload: NewDomain) -> dict:
+    """Create a domain scope."""
+    with _repo() as repo:
+        return {"id": repo.add_scope("domain", payload.title, why=payload.why),
+                "node_kind": "domain", "title": payload.title}
+
+
+@app.post("/api/scopes/index")
+def create_index(payload: NewIndex) -> dict:
+    """Create an index under a domain."""
+    with _repo() as repo:
+        if repo.get_scope(payload.domain_id) is None:
+            raise HTTPException(status_code=404, detail="domain not found")
+        return {"id": repo.add_scope("index", payload.title, domain_id=payload.domain_id,
+                                     why=payload.why),
+                "node_kind": "index", "title": payload.title, "domain_id": payload.domain_id}
+
+
+@app.post("/api/scopes/{scope_id}/refresh")
+def refresh_summary(scope_id: str, payload: RefreshSummaryBody) -> dict:
+    """Regenerate + re-embed a scope's routing summary (client text preferred)."""
+    with _repo() as repo:
+        svc = KnowledgeService(repo, _provider)
+        try:
+            out = svc.refresh_summary(scope_id, summary_text=payload.summary_text)
+        except Exception as exc:  # noqa: BLE001 - embedding needs the provider
+            raise HTTPException(status_code=503, detail=f"summary needs the embedder: {exc}") from exc
+        if "error" in out:
+            raise HTTPException(status_code=404, detail=out["error"])
+        return out
+
+
+@app.delete("/api/scopes/{scope_id}")
+def delete_scope(scope_id: str) -> dict:
+    """Delete a domain/index, detaching its members back to the inbox (no cascade)."""
+    with _repo() as repo:
+        out = repo.delete_scope(scope_id)
+        if out is None:
+            raise HTTPException(status_code=404, detail="scope not found")
+        return {"scope": scope_id, **out}
+
+
+@app.get("/api/inbox")
+def inbox(limit: int = 50) -> dict:
+    """Unclassified content nodes awaiting a home, each with its stored proposal."""
+    with _repo() as repo:
+        return {"items": repo.unclassified_nodes(limit=limit),
+                "total": repo.unclassified_count()}
+
+
+@app.post("/api/nodes/{node_id}/classify")
+def classify_node(node_id: str, payload: ClassifyBody) -> dict:
+    """File a content node into an index (confirm a proposal or triage from the inbox)."""
+    with _repo() as repo:
+        try:
+            out = repo.classify_node(node_id, payload.index_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if out is None:
+            raise HTTPException(status_code=404, detail="node not found")
+        return out
 
 
 # ---- serve the built dashboard (production / Docker) ----

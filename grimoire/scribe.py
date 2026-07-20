@@ -108,7 +108,9 @@ def scribe_from_text(svc: KnowledgeService, message: str) -> dict:
             project=project, summary=content, title=title,
             entities=entities, summary_embedding=_embed(svc, content),
         )
-        return {"id": node_id, "type": "memory", "title": title, "project": project}
+        classification = _classify(svc, node_id, f"{title}\n\n{content}")
+        return {"id": node_id, "type": "memory", "title": title, "project": project,
+                "classification": classification}
 
     # entity or document
     node_id = svc.repo.add_node(ntype, title, status="unreviewed", context_summary=content)
@@ -117,4 +119,15 @@ def scribe_from_text(svc: KnowledgeService, message: str) -> dict:
         emb = _embed(svc, content)
         if emb is not None:
             svc.repo.add_chunk(node_id, 0, content, emb)
-    return {"id": node_id, "type": ntype, "title": title, "project": project}
+    classification = _classify(svc, node_id, f"{title}\n\n{content}")
+    return {"id": node_id, "type": ntype, "title": title, "project": project,
+            "classification": classification}
+
+
+def _classify(svc: KnowledgeService, node_id: str, text: str) -> dict | None:
+    """Route a freshly scribed node into the taxonomy (auto-file or inbox proposal).
+    Best-effort: a routing failure never blocks the capture."""
+    try:
+        return svc.classify_new_node(node_id, text)
+    except Exception:  # noqa: BLE001 - classification is a nicety, not a save gate
+        return None
