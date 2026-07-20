@@ -21,11 +21,17 @@ def recluster(repo: Repository) -> dict:
     Communities are numbered largest-first (ties broken by smallest member id) so the
     numbering is stable across reruns when the graph has not changed.
     """
-    nodes = repo.list_nodes()
+    # Cluster content nodes only. Domain/index scopes carry no edges (the taxonomy is
+    # expressed by the domain_id/index_id columns, not edges), so including them would
+    # just add singleton communities; they keep their previous community_id (NULL).
+    nodes = [n for n in repo.list_nodes() if n.get("node_kind", "node") == "node"]
+    node_ids = {n["id"] for n in nodes}
     edges = repo.list_edges()
     graph = nx.Graph()
     graph.add_nodes_from(n["id"] for n in nodes)
-    graph.add_edges_from((e["src"], e["dst"]) for e in edges)
+    graph.add_edges_from(
+        (e["src"], e["dst"]) for e in edges if e["src"] in node_ids and e["dst"] in node_ids
+    )
     communities = nx.community.louvain_communities(graph, seed=SEED)
     ordered = sorted(communities, key=lambda c: (-len(c), min(c)))
     assignment = {nid: cid for cid, members in enumerate(ordered) for nid in members}

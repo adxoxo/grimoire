@@ -1,7 +1,10 @@
 -- The Grimoire store schema (SQLite + sqlite-vec).
 -- Owned exclusively by the repository layer. No other module issues SQL.
 
--- Nodes: the four types are 'document' | 'memory' | 'project' | 'entity'.
+-- Nodes: content types are 'document' | 'memory' | 'project' | 'entity'.
+-- Two scope kinds sit ABOVE content nodes as a fixed two-level taxonomy
+-- (node_kind = 'domain' | 'index'); their `type` mirrors node_kind. Content
+-- rows keep their four types and node_kind = 'node'. See ARCHITECTURE / V2 spec.
 CREATE TABLE IF NOT EXISTS nodes (
   id TEXT PRIMARY KEY,            -- uuid
   type TEXT NOT NULL,
@@ -13,6 +16,11 @@ CREATE TABLE IF NOT EXISTS nodes (
   community_id INTEGER,          -- Louvain community (kb_recluster); NULL = unclustered
   valid_from TEXT,               -- bitemporal; NULL is read as created_at
   invalidated_at TEXT,           -- set when superseded/archived; NULL = current
+  node_kind TEXT NOT NULL DEFAULT 'node',  -- 'domain' | 'index' | 'node'
+  domain_id TEXT REFERENCES nodes(id),     -- an index's parent domain; a node's domain
+  index_id TEXT REFERENCES nodes(id),      -- a node's index (its retrieval partition)
+  summary TEXT,                  -- domains + indexes only: the routing summary
+  summary_updated_at TEXT,       -- ISO timestamp of the last summary refresh
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -58,6 +66,15 @@ CREATE TABLE IF NOT EXISTS chunks (
 -- Vector index. Dimension is fixed at 768; changing it is a re-embedding operation.
 CREATE VIRTUAL TABLE IF NOT EXISTS chunk_vectors USING vec0(
   chunk_id TEXT PRIMARY KEY,
+  embedding float[768]
+);
+
+-- Scope routing index: one embedding per domain/index, of its summary text. This is
+-- the routing key for two-stage retrieval and classification (tens of vectors, not
+-- thousands), kept separate from chunk_vectors so summaries never leak into content
+-- search. Keyed by the scope node id.
+CREATE VIRTUAL TABLE IF NOT EXISTS scope_vectors USING vec0(
+  scope_id TEXT PRIMARY KEY,
   embedding float[768]
 );
 

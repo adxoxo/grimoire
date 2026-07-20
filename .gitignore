@@ -10,6 +10,7 @@ env/
 data/
 backups/
 *.db
+*.db.reference
 *.db-wal
 *.db-shm
 

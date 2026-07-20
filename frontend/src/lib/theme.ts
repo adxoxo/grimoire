@@ -19,6 +19,29 @@ export const RUNE: Record<NodeType, Rune> = {
   entity: { color: '#9d6bd9', icon: 'token', label: 'Rune', glowClass: 'glow-entity', pulseClass: 'pulse-entity', nav: 'Runes' },
 }
 
+// V2 taxonomy scopes are structural chrome, NOT a fifth/sixth rune colour: they sit
+// above content nodes and use the gold accent family (domain the brighter display gold,
+// index the deeper accent gold) so the four rune hues stay reserved for content.
+export type ScopeKind = 'domain' | 'index'
+
+export interface ScopeStyle {
+  color: string
+  icon: string
+  label: string
+}
+
+export const SCOPE: Record<ScopeKind, ScopeStyle> = {
+  domain: { color: '#e3d3a0', icon: 'hub', label: 'Domain' },
+  index: { color: '#c9a13b', icon: 'category', label: 'Index' },
+}
+
+// Colour for any node, scope or content, guarded against unknown types (a scope row
+// reaching a content-only renderer must not throw).
+export function nodeKindColor(node: { type: string; node_kind?: string | null }): string {
+  if (node.node_kind === 'domain' || node.node_kind === 'index') return SCOPE[node.node_kind].color
+  return RUNE[node.type as NodeType]?.color ?? '#9b96b8'
+}
+
 // Quest lines are the spine; entities are leaves (never a lineage source — the supernode
 // rule). Edges inherit the colour of their higher-rank endpoint so lineage reads by thread.
 const PARENT_RANK: Record<NodeType, number> = { project: 3, memory: 2, document: 1, entity: 0 }

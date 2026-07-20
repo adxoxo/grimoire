@@ -1,7 +1,8 @@
 <script lang="ts">
   import { router, link } from '../lib/router.svelte'
   import { openCapture, openTransmute } from '../lib/appstate.svelte'
-  import { RUNE } from '../lib/theme'
+  import { RUNE, SCOPE } from '../lib/theme'
+  import { api } from '../lib/api'
 
   // The grimoire chrome in one floating pill: sigil, icon tabs, scribe. The 256px
   // rail this replaces spent a fifth of the viewport naming what these icons say.
@@ -9,11 +10,21 @@
     { to: '/today', label: 'Today', icon: 'wb_sunny', color: RUNE.project.color },
     { to: '/flow', label: 'Flow', icon: 'view_timeline', color: RUNE.entity.color },
     { to: '/', label: 'Constellation', icon: 'account_tree', color: RUNE.project.color },
+    { to: '/galaxy', label: 'Galaxy', icon: 'hub', color: SCOPE.domain.color },
+    { to: '/inbox', label: 'Inbox', icon: 'move_to_inbox', color: SCOPE.index.color },
     { to: '/sanctum', label: 'Sanctum', icon: 'fort', color: RUNE.memory.color },
     { to: '/settings', label: 'Settings', icon: 'settings', color: '#9b96b8' },
   ]
 
   const isActive = (to: string) => (to === '/' ? router.path === '/' : router.path.startsWith(to))
+
+  // A small count badge on the Inbox tab so unfiled nodes are visible from anywhere.
+  let inboxCount = $state(0)
+  $effect(() => {
+    let alive = true
+    api.inbox(1).then((r) => { if (alive) inboxCount = r.total }).catch(() => {})
+    return () => { alive = false }
+  })
 
   // The CTA follows the surface: planner pages transmute thoughts into tasks and
   // schedule edits; knowledge surfaces scribe them into nodes.
@@ -41,7 +52,7 @@
       title={tab.label}
       aria-label={tab.label}
       aria-current={active ? 'page' : undefined}
-      class="w-10 h-10 rounded-full flex items-center justify-center transition-colors {active
+      class="relative w-10 h-10 rounded-full flex items-center justify-center transition-colors {active
         ? 'bg-rune-quest/15'
         : 'hover:bg-bg-surface'}"
     >
@@ -51,6 +62,12 @@
       >
         {tab.icon}
       </span>
+      {#if tab.to === '/inbox' && inboxCount > 0}
+        <span
+          class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rune-quest text-bg-page text-[10px] font-label-md flex items-center justify-center"
+          aria-label="{inboxCount} unclassified"
+        >{inboxCount > 99 ? '99+' : inboxCount}</span>
+      {/if}
     </a>
   {/each}
 

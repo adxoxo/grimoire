@@ -137,10 +137,24 @@ class KnowledgeService:
             if proj is None:
                 return []
             node_ids = self.repo.candidate_node_ids(proj["id"])
-        now = datetime.now(timezone.utc)
+        return self._search_chunks(query, node_ids, k, mode, rerank_candidates)
 
+    def _search_chunks(
+        self,
+        query: str,
+        node_ids: list[str] | None,
+        k: int,
+        mode: str,
+        rerank_candidates: int,
+        q_emb: list[float] | None = None,
+    ) -> list[dict]:
+        """The scoring core shared by project-scoped, taxonomy-scoped, and global
+        retrieval. `node_ids=None` scores all chunks; a list restricts to those nodes.
+        `q_emb` lets a caller reuse a query embedding it already computed (routing)."""
+        now = datetime.now(timezone.utc)
         if mode == "vector":
-            rows = self.repo.scored_chunks(self.provider.embed_query(query), node_ids=node_ids)
+            q_emb = q_emb or self.provider.embed_query(query)
+            rows = self.repo.scored_chunks(q_emb, node_ids=node_ids)
             scored = []
             for r in rows:
                 similarity = 1.0 - float(r["distance"])  # cosine distance -> similarity
@@ -153,7 +167,8 @@ class KnowledgeService:
                 for rank, r in enumerate(rows)
             ]
         else:  # hybrid: RRF-fuse both legs, recency decay after fusion
-            vec_rows = self.repo.scored_chunks(self.provider.embed_query(query), node_ids=node_ids)
+            q_emb = q_emb or self.provider.embed_query(query)
+            vec_rows = self.repo.scored_chunks(q_emb, node_ids=node_ids)
             kw_rows = self.repo.keyword_chunks(query, node_ids=node_ids)
             fused: dict[str, dict] = {}
             for leg in (vec_rows[:100], kw_rows):
@@ -171,6 +186,88 @@ class KnowledgeService:
         if self.reranker is not None and len(scored) > 1:
             return self._rerank(query, scored[:rerank_candidates])[:k]
         return scored[:k]
+
+    def retrieve_scoped(
+        self,
+        query: str,
+        project: str | None = None,
+        scope: dict | None = None,
+        route: bool = True,
+        k: int = 10,
+        rerank_candidates: int = 25,
+        mode: str = "hybrid",
+        route_threshold: float = 0.35,
+        route_top_k: int = 2,
+        k_min: int = 3,
+    ) -> dict:
+        """Two-stage scoped retrieval (V2). Returns {"results": [...], "routing": {...}}.
+
+        Precedence: an explicit `project` keeps the legacy graph-narrow behaviour; an
+        explicit `scope` ({domain_id?/index_id?}) pins the partition; otherwise, when
+        `route` is on, the query is routed to the best-matching index(es) by summary
+        similarity and searched inside them. If routing selects nothing, or a scoped
+        search returns fewer than `k_min` hits, it falls back to unscoped global search
+        and says so (routing.mode = 'global_fallback'), never silently empty.
+        """
+        if mode not in ("hybrid", "vector", "keyword"):
+            raise ValueError(f"unknown retrieval mode: {mode!r}")
+
+        # Legacy project scoping stays exactly as before (backward compatible).
+        if project:
+            results = self.retrieve(query, project=project, k=k,
+                                    rerank_candidates=rerank_candidates, mode=mode)
+            return {"results": results,
+                    "routing": {"mode": "project", "project": project}}
+
+        q_emb: list[float] | None = None
+        node_ids: list[str] | None = None
+        routing: dict = {"mode": "global", "matched_indexes": [], "matched_domain": None}
+
+        # Explicit scope wins over auto-routing.
+        if scope and (scope.get("index_id") or scope.get("domain_id")):
+            if scope.get("index_id"):
+                node_ids = self.repo.scope_member_ids(index_ids=[scope["index_id"]])
+            else:
+                node_ids = self.repo.scope_member_ids(domain_ids=[scope["domain_id"]])
+            routing = {"mode": "scoped", "explicit": True,
+                       "index_id": scope.get("index_id"),
+                       "domain_id": scope.get("domain_id")}
+        elif route and mode != "keyword":
+            # Auto-route: index-first, then domain (broad questions), then global.
+            q_emb = self.provider.embed_query(query)
+            idx = self.repo.rank_scopes(q_emb, kind="index", limit=route_top_k)
+            matched = [r for r in idx if r["similarity"] >= route_threshold]
+            if matched:
+                node_ids = self.repo.scope_member_ids(index_ids=[m["scope_id"] for m in matched])
+                routing = {"mode": "scoped",
+                           "matched_indexes": [
+                               {"index_id": m["scope_id"], "index": m["title"],
+                                "score": round(m["similarity"], 4)} for m in matched]}
+            else:
+                dom = self.repo.rank_scopes(q_emb, kind="domain", limit=1)
+                if dom and dom[0]["similarity"] >= route_threshold:
+                    node_ids = self.repo.scope_member_ids(domain_ids=[dom[0]["scope_id"]])
+                    routing = {"mode": "scoped",
+                               "matched_domain": {"domain_id": dom[0]["scope_id"],
+                                                  "domain": dom[0]["title"],
+                                                  "score": round(dom[0]["similarity"], 4)}}
+                else:
+                    routing = {"mode": "global_fallback", "reason": "no scope over threshold",
+                               "matched_indexes": []}
+
+        results = self._search_chunks(query, node_ids, k, mode, rerank_candidates, q_emb=q_emb)
+
+        # Global safety net: a scoped search that comes back too thin re-runs unscoped.
+        if node_ids is not None and len(results) < k_min:
+            results = self._search_chunks(query, None, k, mode, rerank_candidates, q_emb=q_emb)
+            routing = {**routing, "mode": "global_fallback",
+                       "reason": f"scoped hits < k_min ({k_min})"}
+
+        # Annotate each hit with the index/domain it came from.
+        scopes = self.repo.node_scopes([r["node_id"] for r in results])
+        for r in results:
+            r["scope"] = scopes.get(r["node_id"], {})
+        return {"results": results, "routing": routing}
 
     def _rerank(self, query: str, candidates: list[dict]) -> list[dict]:
         """Second-stage re-rank of candidates by a local cross-encoder relevance score.
@@ -191,6 +288,101 @@ class KnowledgeService:
         ranked = sorted(zip(candidates, scores), key=lambda t: t[1], reverse=True)
         return [{**c, "rerank_score": s} for c, s in ranked]
 
+    # ---- classification + scope summaries (V2) --------------------------
+
+    def propose_classification(
+        self, text: str, q_emb: list[float] | None = None, route_top_k: int = 2
+    ) -> dict | None:
+        """Score `text` against index summaries and propose a placement with alternatives.
+        Returns None when there is nothing to route against (no embedded scopes) or the
+        embedder is unavailable, so a node is simply created unclassified in that case."""
+        try:
+            q_emb = q_emb or self.provider.embed_query(text)
+        except Exception:  # noqa: BLE001 - embedder down: no proposal, node -> inbox
+            return None
+        ranked = self.repo.rank_scopes(q_emb, kind="index", limit=max(3, route_top_k + 1))
+        if not ranked:
+            return None
+        best = ranked[0]
+        dom = self.repo.get_node(best["domain_id"]) if best.get("domain_id") else None
+        alternatives: list[dict] = [
+            {"index": r["title"], "index_id": r["scope_id"], "confidence": round(r["similarity"], 3)}
+            for r in ranked[1:route_top_k + 1]
+        ]
+        alternatives += [{"option": "create_new_index"}, {"option": "create_new_domain"}]
+        return {
+            "proposed": {
+                "domain": dom["title"] if dom else None,
+                "domain_id": best.get("domain_id"),
+                "index": best["title"],
+                "index_id": best["scope_id"],
+            },
+            "confidence": round(best["similarity"], 3),
+            "alternatives": alternatives,
+        }
+
+    def classify_new_node(
+        self,
+        node_id: str,
+        text: str,
+        q_emb: list[float] | None = None,
+        autofile_threshold: float = 0.75,
+        route_top_k: int = 2,
+    ) -> dict:
+        """Propose a placement for a freshly created node and either auto-file it (when
+        the top index clears `autofile_threshold`) or stash the proposal on the node so
+        it surfaces in the inbox. Returns the classification block for the response."""
+        proposal = self.propose_classification(text, q_emb=q_emb, route_top_k=route_top_k)
+        if proposal is None:
+            return {"status": "unclassified"}
+        if proposal["confidence"] >= autofile_threshold and proposal["proposed"].get("index_id"):
+            placed = self.repo.classify_node(node_id, proposal["proposed"]["index_id"])
+            return {"status": "filed", **proposal, "placement": placed}
+        self.repo.update_node_meta(node_id, {"classification": proposal})
+        return {"status": "proposed", **proposal}
+
+    def refresh_summary(self, scope_id: str, summary_text: str | None = None) -> dict:
+        """Regenerate (or accept a client-supplied) scope summary, embed it, store it,
+        and stamp the refresh time. Client-generated text is preferred; when omitted the
+        server builds one from member titles/chunks (LLM if available, else a heuristic)."""
+        scope = self.repo.get_scope(scope_id)
+        if scope is None:
+            return {"error": f"not a scope: {scope_id}"}
+        text = (summary_text or "").strip() or self._generate_scope_summary(scope_id)
+        embedding = None
+        try:
+            embedding = self.provider.embed(text)
+        except Exception:  # noqa: BLE001 - summary still stored, just not routable yet
+            embedding = None
+        self.repo.set_scope_summary(scope_id, text, embedding)
+        return {"scope_id": scope_id, "summary": text, "embedded": embedding is not None}
+
+    def _generate_scope_summary(self, scope_id: str) -> str:
+        """A routing summary from a scope's members. Tries the LLM; falls back to a
+        title-based heuristic so this never hard-depends on a completion provider."""
+        sample = self.repo.scope_sample(scope_id)
+        titles = sample.get("titles", [])
+        heuristic = (
+            f"{sample.get('title')}: covers {', '.join(titles[:8])}."
+            if titles else f"{sample.get('title')}: (no members yet)."
+        )
+        chunks = sample.get("chunks", [])[:5]
+        prompt = (
+            "Write a 3 to 6 sentence summary of this knowledge partition: what lives "
+            "here, its key themes, and representative entities. Output only the summary.\n\n"
+            f"Partition: {sample.get('title')}\n"
+            "Member titles:\n" + "\n".join(f"- {t}" for t in titles[:20])
+        )
+        if chunks:
+            prompt += "\n\nSample content:\n" + "\n---\n".join(chunks)
+        try:
+            out = self.provider.complete(
+                prompt, system="You write concise routing summaries for a knowledge base partition."
+            ).strip()
+            return out or heuristic
+        except Exception:  # noqa: BLE001 - no LLM: heuristic summary is enough to route
+            return heuristic
+
     # ---- write path: documents -----------------------------------------
 
     def ingest_document(
@@ -199,9 +391,14 @@ class KnowledgeService:
         project: str | None = None,
         title: str | None = None,
         extra_meta: dict | None = None,
+        classify: bool = True,
+        autofile_threshold: float = 0.75,
+        route_top_k: int = 2,
     ) -> dict:
         """Convert source to markdown, chunk, embed, and write node + chunks + vectors.
-        Links the document to a project when given. Returns the node id and chunk count.
+        Links the document to a project when given. When `classify` is on, routes the
+        document into the taxonomy (auto-file or inbox proposal). Returns the node id,
+        chunk count, and a classification block.
         """
         derived_title, markdown = _to_markdown(source)
         title = title or derived_title
@@ -221,4 +418,11 @@ class KnowledgeService:
             else:
                 proj_id = proj["id"]
             self.repo.link_nodes(node_id, proj_id, "belongs_to")
-        return {"node_id": node_id, "title": title, "chunks": len(chunks)}
+        result = {"node_id": node_id, "title": title, "chunks": len(chunks)}
+        if classify:
+            routing_text = f"{title}\n\n{markdown[:1500]}"
+            result["classification"] = self.classify_new_node(
+                node_id, routing_text,
+                autofile_threshold=autofile_threshold, route_top_k=route_top_k,
+            )
+        return result

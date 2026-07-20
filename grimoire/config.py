@@ -91,6 +91,20 @@ class Settings(BaseSettings):
     rerank_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
     rerank_candidates: int = 25
 
+    # --- V2 hierarchical scoped retrieval + classification ---
+    # Routing scores a query against index summary embeddings; an index wins if its
+    # cosine similarity clears route_threshold, up to route_top_k indexes. If nothing
+    # clears it, or a scoped search returns fewer than retrieve_k_min hits, retrieval
+    # falls back to unscoped global search (never silently empty). On ingest, a node is
+    # auto-filed when the top index clears autofile_threshold; otherwise it lands in the
+    # inbox with a proposal. A scope is nagged for a summary refresh once summary_stale_after
+    # nodes have been filed into it. Starting values; tune on real queries.
+    route_threshold: float = 0.35
+    route_top_k: int = 2
+    retrieve_k_min: int = 3
+    autofile_threshold: float = 0.75
+    summary_stale_after: int = 10
+
     # --- Remote MCP hosting (optional) ---
     # stdio (default) = local subprocess launched per-agent by the MCP client.
     # http            = a long-running network daemon other agents reach by URL.

@@ -29,6 +29,9 @@ SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 NODE_TYPES = ("document", "memory", "project", "entity")
 EDGE_RELS = ("belongs_to", "references", "mentions", "derived_from")
 EDGE_PROVENANCE = ("explicit", "inferred", "ambiguous")
+# Scope kinds: the two taxonomy levels above content nodes. Stored in `nodes` with
+# type mirroring node_kind; node_kind is the authoritative discriminator.
+SCOPE_KINDS = ("domain", "index")
 
 
 def _now() -> str:
@@ -116,6 +119,28 @@ class Repository:
             self._conn.execute(
                 "UPDATE nodes SET valid_from = created_at WHERE valid_from IS NULL"
             )
+            # V2 hierarchical taxonomy: scope kind + partition pointers + routing summary.
+            # Added here (not in schema.sql) because executescript runs before this and
+            # CREATE TABLE IF NOT EXISTS never alters an existing table; pre-existing rows
+            # default to node_kind='node' (unclassified content), which is the intended
+            # backward-compatible state.
+            if "node_kind" not in node_cols:
+                self._conn.execute(
+                    "ALTER TABLE nodes ADD COLUMN node_kind TEXT NOT NULL DEFAULT 'node'"
+                )
+            if "domain_id" not in node_cols:
+                self._conn.execute("ALTER TABLE nodes ADD COLUMN domain_id TEXT")
+            if "index_id" not in node_cols:
+                self._conn.execute("ALTER TABLE nodes ADD COLUMN index_id TEXT")
+            if "summary" not in node_cols:
+                self._conn.execute("ALTER TABLE nodes ADD COLUMN summary TEXT")
+            if "summary_updated_at" not in node_cols:
+                self._conn.execute("ALTER TABLE nodes ADD COLUMN summary_updated_at TEXT")
+            # Scope indexes live here so they are created only after the columns exist
+            # (a CREATE INDEX in schema.sql would run against the not-yet-migrated table).
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_kind ON nodes(node_kind)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_index ON nodes(index_id)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_domain ON nodes(domain_id)")
             edge_cols = cols("edges")
             if "provenance" not in edge_cols:
                 # existing edges were all created by explicit tool calls; the default backfills them
@@ -202,16 +227,20 @@ class Repository:
 
     def list_nodes(self, type: str | None = None) -> list[dict[str, Any]]:
         """All currently-valid nodes, optionally filtered by type. Used by the
-        constellation graph, the Obsidian export, and Louvain clustering."""
+        constellation graph, the Obsidian export, and Louvain clustering. Carries the
+        taxonomy fields (node_kind/domain_id/index_id) so the constellation can render
+        the domain -> index -> node level-of-detail without a second query."""
+        cols = ("id, type, title, status, community_id,"
+                " node_kind, domain_id, index_id, updated_at")
         if type is not None:
             rows = self._conn.execute(
-                "SELECT id, type, title, status, community_id, updated_at FROM nodes"
+                f"SELECT {cols} FROM nodes"
                 " WHERE type = ? AND invalidated_at IS NULL ORDER BY updated_at DESC",
                 (type,),
             ).fetchall()
         else:
             rows = self._conn.execute(
-                "SELECT id, type, title, status, community_id, updated_at FROM nodes"
+                f"SELECT {cols} FROM nodes"
                 " WHERE invalidated_at IS NULL ORDER BY updated_at DESC"
             ).fetchall()
         return [dict(r) for r in rows]
@@ -307,6 +336,46 @@ class Repository:
                 (status, _now(), node_id),
             )
 
+    def update_node_meta(self, node_id: str, patch: dict[str, Any]) -> None:
+        """Shallow-merge `patch` into a node's JSON meta (used to stash an ingest-time
+        classification proposal). Keys set to None are removed."""
+        row = self._conn.execute("SELECT meta FROM nodes WHERE id = ?", (node_id,)).fetchone()
+        if row is None:
+            return
+        meta = json.loads(row["meta"] or "{}")
+        for key, value in patch.items():
+            if value is None:
+                meta.pop(key, None)
+            else:
+                meta[key] = value
+        with self._conn:
+            self._conn.execute(
+                "UPDATE nodes SET meta = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(meta), _now(), node_id),
+            )
+
+    def node_scopes(self, node_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Batch breadcrumb lookup: node_id -> {index_id, index, domain_id, domain} for a
+        set of content nodes (used to annotate retrieval hits with their partition)."""
+        if not node_ids:
+            return {}
+        placeholders = ",".join("?" * len(node_ids))
+        rows = self._conn.execute(
+            f"SELECT n.id, n.index_id, n.domain_id, i.title AS index_title,"
+            f" d.title AS domain_title FROM nodes n"
+            f" LEFT JOIN nodes i ON i.id = n.index_id"
+            f" LEFT JOIN nodes d ON d.id = n.domain_id"
+            f" WHERE n.id IN ({placeholders})",
+            node_ids,
+        ).fetchall()
+        return {
+            r["id"]: {
+                "index_id": r["index_id"], "index": r["index_title"],
+                "domain_id": r["domain_id"], "domain": r["domain_title"],
+            }
+            for r in rows
+        }
+
     def node_chunk_texts(self, node_id: str) -> list[str]:
         """A node's chunk contents in order (fallback document body if no full text)."""
         rows = self._conn.execute(
@@ -368,6 +437,15 @@ class Repository:
             self._conn.execute("DELETE FROM memory_raw WHERE node_id = ?", (node_id,))
             self._conn.execute("DELETE FROM edges WHERE src = ? OR dst = ?", (node_id, node_id))
             self._conn.execute("DELETE FROM node_layout WHERE node_id = ?", (node_id,))
+            self._conn.execute("DELETE FROM scope_vectors WHERE scope_id = ?", (node_id,))
+            # If this node was a scope, detach any members that pointed at it so no
+            # content node is left with a dangling domain_id/index_id (delete_scope is
+            # the graceful path; this keeps the invariant even on a raw hard-delete).
+            self._conn.execute(
+                "UPDATE nodes SET domain_id = NULL, index_id = NULL, updated_at = ?"
+                " WHERE domain_id = ? OR index_id = ?",
+                (_now(), node_id, node_id),
+            )
             cur = self._conn.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
             return cur.rowcount
 
@@ -590,6 +668,369 @@ class Repository:
         out = self._node_row_to_dict(proj)
         out["linked"] = [dict(r) for r in linked]
         return out
+
+    # ---- scopes: the V2 hierarchical taxonomy (domain -> index -> node) ---
+    #
+    # Domains and indexes are rows in `nodes` with node_kind in ('domain','index')
+    # and type mirroring node_kind. The hierarchy is expressed by the domain_id /
+    # index_id columns, NOT by edges: edges stay the association layer, the taxonomy
+    # is the scoping layer. Integrity is enforced here, in application code:
+    #   domain -> domain_id NULL, index_id NULL
+    #   index  -> domain_id = its domain, index_id NULL
+    #   node   -> both NULL (inbox) OR both set with index_id's domain == domain_id
+
+    def add_scope(
+        self, node_kind: str, title: str, *, domain_id: str | None = None, why: str | None = None
+    ) -> str:
+        """Create a domain or an index. An index must name an existing domain."""
+        if node_kind not in SCOPE_KINDS:
+            raise ValueError(f"unknown scope kind: {node_kind!r}")
+        if node_kind == "index":
+            if not domain_id:
+                raise ValueError("an index requires a domain_id")
+            parent = self.get_node(domain_id)
+            if parent is None or parent.get("node_kind") != "domain":
+                raise ValueError(f"domain_id does not point to a domain: {domain_id!r}")
+        else:
+            domain_id = None
+        sid = _new_id()
+        now = _now()
+        meta = json.dumps({"why": why} if why else {})
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO nodes(id,type,title,status,meta,node_kind,domain_id,"
+                " valid_from,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (sid, node_kind, title, None, meta, node_kind, domain_id, now, now, now),
+            )
+        return sid
+
+    def get_scope(self, scope_id: str) -> dict[str, Any] | None:
+        """A domain or index node by id, or None if it is not a scope."""
+        node = self.get_node(scope_id)
+        if node is None or node.get("node_kind") not in SCOPE_KINDS:
+            return None
+        return node
+
+    def list_scopes(self, stale_after: int = 10) -> dict[str, Any]:
+        """Domains with their indexes, member-node counts, and summary freshness.
+        A scope is stale when it has no summary yet, or when at least `stale_after`
+        nodes have been filed into it since its last refresh."""
+        domains = [
+            self._node_row_to_dict(r)
+            for r in self._conn.execute(
+                "SELECT * FROM nodes WHERE node_kind = 'domain' AND invalidated_at IS NULL"
+                " ORDER BY title"
+            ).fetchall()
+        ]
+        indexes = [
+            self._node_row_to_dict(r)
+            for r in self._conn.execute(
+                "SELECT * FROM nodes WHERE node_kind = 'index' AND invalidated_at IS NULL"
+                " ORDER BY title"
+            ).fetchall()
+        ]
+        idx_counts = {
+            r["index_id"]: r["c"]
+            for r in self._conn.execute(
+                "SELECT index_id, count(*) AS c FROM nodes"
+                " WHERE node_kind = 'node' AND index_id IS NOT NULL AND invalidated_at IS NULL"
+                " GROUP BY index_id"
+            ).fetchall()
+        }
+        dom_counts = {
+            r["domain_id"]: r["c"]
+            for r in self._conn.execute(
+                "SELECT domain_id, count(*) AS c FROM nodes"
+                " WHERE node_kind = 'node' AND domain_id IS NOT NULL AND invalidated_at IS NULL"
+                " GROUP BY domain_id"
+            ).fetchall()
+        }
+
+        def _stale(scope: dict[str, Any]) -> bool:
+            if not scope.get("summary"):
+                return True
+            return int((scope.get("meta") or {}).get("pending_since_refresh", 0)) >= stale_after
+
+        idx_by_domain: dict[str, list[dict[str, Any]]] = {}
+        for idx in indexes:
+            idx_by_domain.setdefault(idx.get("domain_id"), []).append({
+                "id": idx["id"],
+                "title": idx["title"],
+                "summary": idx.get("summary"),
+                "summary_updated_at": idx.get("summary_updated_at"),
+                "node_count": idx_counts.get(idx["id"], 0),
+                "stale": _stale(idx),
+            })
+        out_domains = [
+            {
+                "id": d["id"],
+                "title": d["title"],
+                "summary": d.get("summary"),
+                "summary_updated_at": d.get("summary_updated_at"),
+                "node_count": dom_counts.get(d["id"], 0),
+                "stale": _stale(d),
+                "indexes": idx_by_domain.get(d["id"], []),
+            }
+            for d in domains
+        ]
+        return {
+            "domains": out_domains,
+            "unclassified": self.unclassified_count(),
+            "stale_count": sum(
+                1 for d in domains if _stale(d)
+            ) + sum(1 for i in indexes if _stale(i)),
+        }
+
+    def classify_node(self, node_id: str, index_id: str) -> dict[str, Any] | None:
+        """File a content node into an index (sets index_id + its domain consistently).
+        Clears any stored classification proposal and nudges the index toward a summary
+        refresh. Returns the placement, or None if the node does not exist."""
+        node = self.get_node(node_id)
+        if node is None:
+            return None
+        if node.get("node_kind") not in (None, "node"):
+            raise ValueError("only content nodes can be classified")
+        idx = self.get_node(index_id)
+        if idx is None or idx.get("node_kind") != "index":
+            raise ValueError(f"index_id must point to an index: {index_id!r}")
+        domain_id = idx.get("domain_id")
+        meta = node.get("meta") or {}
+        meta.pop("classification", None)
+        now = _now()
+        with self._conn:
+            self._conn.execute(
+                "UPDATE nodes SET index_id = ?, domain_id = ?, meta = ?, updated_at = ?"
+                " WHERE id = ?",
+                (index_id, domain_id, json.dumps(meta), now, node_id),
+            )
+            self._bump_pending(index_id)
+            if domain_id:
+                self._bump_pending(domain_id)
+        return {"node_id": node_id, "index_id": index_id, "domain_id": domain_id}
+
+    # kb_move_node is an alias of classify: re-filing is the same operation.
+    move_node = classify_node
+
+    def classify_community_nodes(self, community_ids: list[int], index_id: str) -> int:
+        """Bulk-file every content node in the given Louvain communities into an index
+        (the migration backfill, §7). Returns the number of nodes filed."""
+        idx = self.get_node(index_id)
+        if idx is None or idx.get("node_kind") != "index":
+            raise ValueError(f"index_id must point to an index: {index_id!r}")
+        if not community_ids:
+            return 0
+        domain_id = idx.get("domain_id")
+        placeholders = ",".join("?" * len(community_ids))
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE nodes SET index_id = ?, domain_id = ?, updated_at = ?"
+                " WHERE node_kind = 'node' AND invalidated_at IS NULL"
+                f" AND community_id IN ({placeholders})",
+                (index_id, domain_id, _now(), *community_ids),
+            )
+            return cur.rowcount
+
+    def unclassify_node(self, node_id: str) -> bool:
+        """Detach a content node back to the inbox (both scope pointers NULL)."""
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE nodes SET index_id = NULL, domain_id = NULL, updated_at = ?"
+                " WHERE id = ? AND node_kind = 'node'",
+                (_now(), node_id),
+            )
+            return cur.rowcount > 0
+
+    def _bump_pending(self, scope_id: str) -> None:
+        """Increment a scope's since-refresh counter (staleness nag). Open txn only."""
+        row = self._conn.execute("SELECT meta FROM nodes WHERE id = ?", (scope_id,)).fetchone()
+        if row is None:
+            return
+        meta = json.loads(row["meta"] or "{}")
+        meta["pending_since_refresh"] = int(meta.get("pending_since_refresh", 0)) + 1
+        self._conn.execute("UPDATE nodes SET meta = ? WHERE id = ?", (json.dumps(meta), scope_id))
+
+    def unclassified_count(self) -> int:
+        return self._conn.execute(
+            "SELECT count(*) FROM nodes WHERE node_kind = 'node' AND index_id IS NULL"
+            " AND invalidated_at IS NULL"
+        ).fetchone()[0]
+
+    def unclassified_nodes(self, limit: int = 50) -> list[dict[str, Any]]:
+        """The inbox: content nodes not yet filed into an index, newest first. Each row
+        carries its stored classification proposal (if ingest left one) for the UI."""
+        rows = self._conn.execute(
+            "SELECT id, type, title, status, context_summary, meta, updated_at FROM nodes"
+            " WHERE node_kind = 'node' AND index_id IS NULL AND invalidated_at IS NULL"
+            " ORDER BY updated_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            d = dict(r)
+            meta = json.loads(d.pop("meta") or "{}")
+            d["proposal"] = meta.get("classification")
+            out.append(d)
+        return out
+
+    def node_breadcrumb(self, node_id: str) -> dict[str, Any]:
+        """A content node's domain/index placement (titles + ids), for the payload
+        breadcrumb. Empty dict fields when unclassified."""
+        row = self._conn.execute(
+            "SELECT domain_id, index_id FROM nodes WHERE id = ?", (node_id,)
+        ).fetchone()
+        if row is None:
+            return {}
+        out = {"domain_id": row["domain_id"], "index_id": row["index_id"],
+               "domain": None, "index": None}
+        if row["domain_id"]:
+            d = self._conn.execute("SELECT title FROM nodes WHERE id = ?", (row["domain_id"],)).fetchone()
+            out["domain"] = d["title"] if d else None
+        if row["index_id"]:
+            i = self._conn.execute("SELECT title FROM nodes WHERE id = ?", (row["index_id"],)).fetchone()
+            out["index"] = i["title"] if i else None
+        return out
+
+    def scope_member_ids(
+        self, index_ids: list[str] | None = None, domain_ids: list[str] | None = None
+    ) -> list[str]:
+        """Content node ids inside the given indexes and/or domains (currently valid).
+        The candidate set for scoped retrieval."""
+        clauses, params = [], []
+        if index_ids:
+            clauses.append(f"index_id IN ({','.join('?' * len(index_ids))})")
+            params.extend(index_ids)
+        if domain_ids:
+            clauses.append(f"domain_id IN ({','.join('?' * len(domain_ids))})")
+            params.extend(domain_ids)
+        if not clauses:
+            return []
+        sql = (
+            "SELECT id FROM nodes WHERE node_kind = 'node' AND invalidated_at IS NULL"
+            f" AND ({' OR '.join(clauses)})"
+        )
+        return [r["id"] for r in self._conn.execute(sql, params).fetchall()]
+
+    def scope_sample(self, scope_id: str, node_limit: int = 20, chunk_limit: int = 10) -> dict[str, Any]:
+        """Material for generating a scope summary: the scope's own title, a sample of
+        member titles, and a few representative chunk texts. Works for a domain (all its
+        members) or an index (its members)."""
+        scope = self.get_scope(scope_id)
+        if scope is None:
+            return {}
+        col = "domain_id" if scope["node_kind"] == "domain" else "index_id"
+        titles = [
+            r["title"]
+            for r in self._conn.execute(
+                f"SELECT title FROM nodes WHERE node_kind = 'node' AND {col} = ?"
+                " AND invalidated_at IS NULL ORDER BY updated_at DESC LIMIT ?",
+                (scope_id, node_limit),
+            ).fetchall()
+        ]
+        chunks = [
+            r["content"]
+            for r in self._conn.execute(
+                f"SELECT c.content FROM chunks c JOIN nodes n ON n.id = c.node_id"
+                f" WHERE n.node_kind = 'node' AND n.{col} = ? AND n.invalidated_at IS NULL"
+                " ORDER BY c.created_at DESC LIMIT ?",
+                (scope_id, chunk_limit),
+            ).fetchall()
+        ]
+        return {"title": scope["title"], "kind": scope["node_kind"],
+                "titles": titles, "chunks": chunks}
+
+    def set_scope_summary(
+        self, scope_id: str, summary_text: str, embedding: list[float] | None = None
+    ) -> bool:
+        """Store a scope's routing summary, embed it into scope_vectors, stamp the
+        refresh time, and reset the staleness counter. Returns False if not a scope."""
+        scope = self.get_scope(scope_id)
+        if scope is None:
+            return False
+        meta = scope.get("meta") or {}
+        meta["pending_since_refresh"] = 0
+        now = _now()
+        with self._conn:
+            self._conn.execute(
+                "UPDATE nodes SET summary = ?, summary_updated_at = ?, meta = ?, updated_at = ?"
+                " WHERE id = ?",
+                (summary_text, now, json.dumps(meta), now, scope_id),
+            )
+            if embedding is not None:
+                if len(embedding) != self.embed_dim:
+                    raise ValueError(
+                        f"embedding has {len(embedding)} dims, expected {self.embed_dim}"
+                    )
+                self._conn.execute("DELETE FROM scope_vectors WHERE scope_id = ?", (scope_id,))
+                self._conn.execute(
+                    "INSERT INTO scope_vectors(scope_id, embedding) VALUES (?, ?)",
+                    (scope_id, serialize_float32(embedding)),
+                )
+        return True
+
+    def rank_scopes(
+        self, query_embedding: list[float], kind: str = "index", limit: int = 2
+    ) -> list[dict[str, Any]]:
+        """Rank domains or indexes by cosine similarity of their summary embedding to a
+        query. The routing step: cheap (tens of vectors). Returns best first with a
+        `similarity` in [0, 1]. Only scopes that have an embedded summary participate."""
+        if kind not in SCOPE_KINDS:
+            raise ValueError(f"unknown scope kind: {kind!r}")
+        if len(query_embedding) != self.embed_dim:
+            raise ValueError(f"query has {len(query_embedding)} dims, expected {self.embed_dim}")
+        rows = self._conn.execute(
+            "SELECT sv.scope_id, n.title, n.domain_id,"
+            " vec_distance_cosine(sv.embedding, ?) AS distance"
+            " FROM scope_vectors sv JOIN nodes n ON n.id = sv.scope_id"
+            " WHERE n.node_kind = ? AND n.invalidated_at IS NULL"
+            " ORDER BY distance LIMIT ?",
+            (serialize_float32(query_embedding), kind, limit),
+        ).fetchall()
+        return [
+            {"scope_id": r["scope_id"], "title": r["title"], "domain_id": r["domain_id"],
+             "similarity": 1.0 - float(r["distance"])}
+            for r in rows
+        ]
+
+    def delete_scope(self, scope_id: str) -> dict[str, Any] | None:
+        """Delete a domain or index, detaching its member nodes back to the inbox. Never
+        cascades node deletion. Deleting a domain also removes its indexes. Returns
+        {detached, removed_scopes} or None if the id is not a scope."""
+        scope = self.get_scope(scope_id)
+        if scope is None:
+            return None
+        now = _now()
+        with self._conn:
+            if scope["node_kind"] == "index":
+                detached = self._conn.execute(
+                    "UPDATE nodes SET index_id = NULL, domain_id = NULL, updated_at = ?"
+                    " WHERE index_id = ? AND node_kind = 'node'",
+                    (now, scope_id),
+                ).rowcount
+                removed = [scope_id]
+            else:  # domain: detach all members, then drop its indexes and itself
+                detached = self._conn.execute(
+                    "UPDATE nodes SET index_id = NULL, domain_id = NULL, updated_at = ?"
+                    " WHERE domain_id = ? AND node_kind = 'node'",
+                    (now, scope_id),
+                ).rowcount
+                index_ids = [
+                    r["id"] for r in self._conn.execute(
+                        "SELECT id FROM nodes WHERE node_kind = 'index' AND domain_id = ?",
+                        (scope_id,),
+                    ).fetchall()
+                ]
+                removed = index_ids + [scope_id]
+            placeholders = ",".join("?" * len(removed))
+            self._conn.execute(
+                f"DELETE FROM scope_vectors WHERE scope_id IN ({placeholders})", removed
+            )
+            self._conn.execute(
+                f"DELETE FROM node_layout WHERE node_id IN ({placeholders})", removed
+            )
+            self._conn.execute(
+                f"DELETE FROM nodes WHERE id IN ({placeholders})", removed
+            )
+        return {"detached": detached, "removed_scopes": len(removed)}
 
     # ---- memory ---------------------------------------------------------
 
