@@ -12,14 +12,16 @@ cd "$(dirname "$0")/.."
 mkdir -p data/logs
 mkdir -p ~/.config/systemd/user
 
-for unit in grimoire-compact.service grimoire-compact.timer \
-            grimoire-reembed.service grimoire-reembed.timer \
+# compaction now runs in-process via the API lifespan scheduler (see grimoire/scheduler.py)
+# grimoire-compact.service grimoire-compact.timer \
+for unit in grimoire-reembed.service grimoire-reembed.timer \
             grimoire-backup.service grimoire-backup.timer; do
   cp "deploy/$unit" ~/.config/systemd/user/
 done
 
 systemctl --user daemon-reload
-systemctl --user enable --now grimoire-compact.timer
+# compaction now runs in-process via the API lifespan scheduler (see grimoire/scheduler.py)
+# systemctl --user enable --now grimoire-compact.timer
 systemctl --user enable --now grimoire-reembed.timer
 systemctl --user enable --now grimoire-backup.timer
 
