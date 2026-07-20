@@ -14,6 +14,13 @@
   // The chosen index per row (defaults to the proposal); keyed by node id.
   let choice = $state<Record<string, string>>({})
 
+  // Auto-classification: the bulk pass, its result line, the per-row call in flight, and
+  // per-row hints for items the LLM could not confidently place.
+  let autofiling = $state(false)
+  let autofileMsg = $state<string | null>(null)
+  let autoBusy = $state<string | null>(null)
+  let autoHint = $state<Record<string, string>>({})
+
   // Inline scope creation.
   let newDomain = $state('')
   let newIndexTitle = $state('')
@@ -32,7 +39,7 @@
       .catch((e) => (error = String(e)))
   }
   $effect(load)
-  liveRefresh(load, { enabled: () => busy === null && !creating })
+  liveRefresh(load, { enabled: () => busy === null && autoBusy === null && !autofiling && !creating })
 
   const hasIndexes = $derived((scopes?.domains ?? []).some((d) => d.indexes.length > 0))
 
@@ -48,6 +55,41 @@
       error = String(e)
     } finally {
       busy = null
+    }
+  }
+
+  // Bulk auto-file: file every confident match server-side, report the split, reload.
+  async function autofileAll() {
+    autofiling = true
+    autofileMsg = null
+    try {
+      const res = await api.autofileInbox()
+      autofileMsg = `Filed ${res.filed_count}, ${res.skipped_count} need review`
+      load()
+      refreshGraph()
+    } catch (e) {
+      error = String(e)
+    } finally {
+      autofiling = false
+    }
+  }
+
+  // Per-item auto: file on a confident match, otherwise leave the manual picker with a hint.
+  async function autoOne(id: string) {
+    autoBusy = id
+    autoHint = { ...autoHint, [id]: '' }
+    try {
+      const res = await api.autoClassify(id)
+      if (res.filed) {
+        items = items ? items.filter((i) => i.id !== id) : items
+        refreshGraph()
+      } else {
+        autoHint = { ...autoHint, [id]: 'No confident match, choose manually' }
+      }
+    } catch (e) {
+      error = String(e)
+    } finally {
+      autoBusy = null
     }
   }
 
@@ -99,6 +141,24 @@
       <span class="ml-auto font-body-sm text-body-sm text-text-tertiary">{items.length} unclassified</span>
     {/if}
   </header>
+
+  <!-- Auto-file: let the model place every confident match in one pass. -->
+  {#if items && items.length > 0}
+    <div class="mb-lg flex items-center gap-3 flex-wrap">
+      <button
+        onclick={autofileAll}
+        disabled={autofiling || autoBusy !== null || !hasIndexes}
+        title={hasIndexes ? 'Auto-file every item with a confident match' : 'Create a domain and index first'}
+        class="inline-flex items-center gap-2 py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-40"
+      >
+        <span class="material-symbols-outlined text-[18px] {autofiling ? 'animate-spin' : ''}">{autofiling ? 'progress_activity' : 'auto_awesome'}</span>
+        {autofiling ? 'Filing...' : 'Auto-file all'}
+      </button>
+      {#if autofileMsg}
+        <span class="font-body-sm text-body-sm text-text-muted">{autofileMsg}</span>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Scope creation: an index (grouped under a domain) is the unit of filing. -->
   <section class="mb-lg grid gap-3 sm:grid-cols-2">
@@ -176,7 +236,8 @@
           <div class="shrink-0 flex flex-col items-end gap-2 w-56">
             <select
               bind:value={choice[item.id]}
-              class="w-full bg-bg-surface border border-border-default rounded px-2 py-1.5 font-body-sm text-body-sm text-on-surface"
+              disabled={autoBusy === item.id}
+              class="w-full bg-bg-surface border border-border-default rounded px-2 py-1.5 font-body-sm text-body-sm text-on-surface disabled:opacity-50"
             >
               <option value="">Choose an index…</option>
               {#each scopes?.domains ?? [] as d (d.id)}
@@ -189,13 +250,27 @@
                 {/if}
               {/each}
             </select>
-            <button
-              onclick={() => file(item.id)}
-              disabled={busy === item.id || !choice[item.id]}
-              class="py-1.5 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-40"
-            >
-              {busy === item.id ? '...' : 'File'}
-            </button>
+            <div class="flex items-center gap-2 w-full justify-end">
+              <button
+                onclick={() => autoOne(item.id)}
+                disabled={autoBusy === item.id || busy === item.id || autofiling}
+                title="Auto-classify this item"
+                aria-label="Auto-classify this item"
+                class="w-9 h-9 flex items-center justify-center border border-primary-container/60 text-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_12px_0px_rgba(212,169,63,0.25)] transition-all duration-300 disabled:opacity-40"
+              >
+                <span class="material-symbols-outlined text-[18px] {autoBusy === item.id ? 'animate-spin' : ''}">{autoBusy === item.id ? 'progress_activity' : 'auto_fix_high'}</span>
+              </button>
+              <button
+                onclick={() => file(item.id)}
+                disabled={busy === item.id || autoBusy === item.id || !choice[item.id]}
+                class="py-1.5 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-40"
+              >
+                {busy === item.id ? '...' : 'File'}
+              </button>
+            </div>
+            {#if autoHint[item.id]}
+              <span class="font-body-sm text-body-sm text-text-muted text-right">{autoHint[item.id]}</span>
+            {/if}
           </div>
         </div>
       </li>

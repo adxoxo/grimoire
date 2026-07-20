@@ -19,12 +19,17 @@ def reembed_all(
     repo: Repository,
     provider: Provider,
     progress: Callable[[int, dict], None] | None = None,
-) -> int:
-    """Re-embed every chunk. Returns the count re-embedded.
+) -> dict[str, int]:
+    """Re-embed every chunk and every scope routing summary. Returns
+    {"chunks": <n>, "scopes": <m>}.
 
     Phase 0 limitation: this re-embeds in place at the current dimension. Changing the
     dimension also requires recreating the vec0 table (float[N]) and doing the swap
     transactionally; that is Phase 5's job. Guarded here so the mismatch is loud.
+
+    A model change also invalidates the scope_vectors that routing depends on, so those
+    are re-embedded here too (from each scope's stored summary); otherwise routing
+    silently breaks until each scope is manually refreshed.
     """
     if provider.embed_dim != repo.embed_dim:
         raise ValueError(
@@ -38,4 +43,13 @@ def reembed_all(
         count += 1
         if progress is not None:
             progress(count, chunk)
-    return count
+    scope_count = 0
+    scopes = repo.list_scopes()
+    for domain in scopes.get("domains", []):
+        for scope in [domain, *domain.get("indexes", [])]:
+            summary = (scope.get("summary") or "").strip()
+            if not summary:
+                continue
+            repo.set_scope_summary(scope["id"], summary, embedding=provider.embed(summary))
+            scope_count += 1
+    return {"chunks": count, "scopes": scope_count}

@@ -269,3 +269,76 @@ def test_rerank_degrades_on_score_count_mismatch(tmp_path: Path, provider):
     svc = _svc(tmp_path, provider, _StubReranker([0.9]))  # 1 score for 3 candidates
     cands = _cands(3)
     assert svc._rerank("q", cands) == cands
+
+
+# ---------------------------------------------------------------------------
+# 8. neighbors() + related expansion (1-hop association, entity supernode cap)
+# ---------------------------------------------------------------------------
+
+def test_neighbors_metadata_excludes_and_caps(tmp_path: Path, provider):
+    repo = Repository(tmp_path / "g.db")
+    try:
+        repo.upsert_project("Neo")
+        proj = repo.get_project("Neo")["id"]
+        hub = repo.add_node("memory", "hub note")
+        repo.link_nodes(hub, proj, "belongs_to")  # confidence 1.0
+        ents = []
+        for i in range(8):
+            e = repo.add_node("entity", f"api {i}")
+            repo.link_nodes(hub, e, "mentions", confidence=0.1 * (i + 1))
+            ents.append(e)
+
+        got = repo.neighbors([hub], per_node=3)[hub]
+        assert len(got) == 3  # capped to per_node
+        confs = [n["confidence"] for n in got]
+        assert confs == sorted(confs, reverse=True)  # highest confidence first
+        assert set(got[0]) >= {"node_id", "title", "type", "rel", "confidence", "provenance"}
+        assert hub not in {n["node_id"] for n in got}  # never the seed itself
+
+        excluded = repo.neighbors([hub], per_node=10, exclude={ents[7]})[hub]
+        assert ents[7] not in {n["node_id"] for n in excluded}
+        floored = repo.neighbors([hub], per_node=10, min_confidence=0.55)[hub]
+        assert all(n["confidence"] >= 0.55 for n in floored)
+
+        # invalidated edges and invalidated neighbour nodes drop out
+        repo.unlink_nodes(hub, ents[0], "mentions")
+        repo.archive_node(ents[1])
+        after = {n["node_id"] for n in repo.neighbors([hub], per_node=10)[hub]}
+        assert ents[0] not in after and ents[1] not in after
+    finally:
+        repo.close()
+
+
+def test_expand_related_annotates_and_caps_entities(tmp_path: Path, provider):
+    repo = Repository(tmp_path / "g.db")
+    try:
+        repo.upsert_project("Rel")
+        proj = repo.get_project("Rel")["id"]
+        mem = repo.add_node("memory", "session note")
+        ent = repo.add_node("entity", "Shared API")
+        neighbor = repo.add_node("document", "linked doc")
+        ent_only = repo.add_node("document", "entity-only doc")
+        repo.link_nodes(mem, proj, "belongs_to")
+        repo.link_nodes(mem, ent, "mentions")
+        repo.link_nodes(mem, neighbor, "references")
+        repo.link_nodes(ent, ent_only, "references")  # reachable ONLY through the entity
+        svc = KnowledgeService(repo, provider)
+
+        results = [{"node_id": mem, "type": "memory"},
+                   {"node_id": ent, "type": "entity"}]
+        related = svc._expand_related(results)
+        rel_ids = {r["node_id"] for r in related}
+
+        assert neighbor in rel_ids                    # expanded from the memory hit
+        assert ent_only not in rel_ids                # entity hits are not expanded out
+        assert mem not in rel_ids and ent not in rel_ids  # nodes already in results excluded
+
+        item = next(r for r in related if r["node_id"] == neighbor)
+        assert item["from_node_id"] == mem
+        assert item["rel"] == "references"
+        assert "scope" in item  # annotated with the neighbour's own breadcrumb
+
+        assert svc._expand_related(results, enabled=False) == []  # gate off -> empty
+        assert svc._expand_related([]) == []                       # no hits -> empty
+    finally:
+        repo.close()

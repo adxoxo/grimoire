@@ -98,6 +98,17 @@ export interface Routing {
   project?: string
 }
 
+// A related node surfaced alongside search results (the backend `related` feature).
+export interface RelatedItem {
+  node_id: string
+  title: string
+  type: NodeType
+  rel: string
+  confidence: number
+  index: string | null
+  domain: string | null
+}
+
 // V2 taxonomy: the two scope levels above content nodes.
 export interface ClassificationProposal {
   proposed: { domain: string | null; domain_id: string | null; index: string; index_id: string }
@@ -132,6 +143,25 @@ export interface InboxItem {
   context_summary: string | null
   updated_at: string
   proposal: ClassificationProposal | null
+}
+
+// LLM-backed auto-classification of a single node (filed only on a confident match).
+export interface AutoClassifyResult {
+  node_id: string
+  filed: boolean
+  index_id: string | null
+  index: string | null
+  domain: string | null
+  score: number
+  reason: string
+}
+
+// The bulk auto-file pass over the whole inbox.
+export interface AutofileResult {
+  filed_count: number
+  skipped_count: number
+  filed: AutoClassifyResult[]
+  skipped: AutoClassifyResult[]
 }
 
 async function get<T>(url: string): Promise<T> {
@@ -186,7 +216,7 @@ export const api = {
     if (opts.domainId) p.set('domain_id', opts.domainId)
     if (opts.indexId) p.set('index_id', opts.indexId)
     if (opts.route === false) p.set('route', 'false')
-    return get<{ results: SearchHit[]; routing: Routing }>(`/api/search?${p.toString()}`)
+    return get<{ results: SearchHit[]; routing: Routing; related: RelatedItem[] }>(`/api/search?${p.toString()}`)
   },
   // --- V2 taxonomy: scopes, the classification inbox, summaries ---
   scopes: () => get<ScopeTree>('/api/scopes'),
@@ -195,6 +225,9 @@ export const api = {
     post<{ node_id: string; index_id: string; domain_id: string }>(
       `/api/nodes/${encodeURIComponent(id)}/classify`, { index_id: indexId },
     ),
+  // LLM auto-classification: one node, or the whole inbox in a single bulk pass.
+  autoClassify: (id: string) => post<AutoClassifyResult>(`/api/nodes/${encodeURIComponent(id)}/autoclassify`),
+  autofileInbox: () => post<AutofileResult>('/api/inbox/autofile'),
   createDomain: (title: string, why?: string) =>
     post<{ id: string; node_kind: 'domain'; title: string }>('/api/scopes/domain', { title, why }),
   createIndex: (domainId: string, title: string, why?: string) =>

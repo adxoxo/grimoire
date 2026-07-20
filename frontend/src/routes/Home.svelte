@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api, type Graph, type GraphNode } from '../lib/api'
   import { RUNE, type NodeType } from '../lib/theme'
-  import { router, link } from '../lib/router.svelte'
+  import { router, link, navigate } from '../lib/router.svelte'
   import { appState, refreshGraph } from '../lib/appstate.svelte'
   import { liveRefresh } from '../lib/useLive.svelte'
   import { fly } from 'svelte/transition'
@@ -17,69 +17,45 @@
   let query = $state('')
   let hidden = $state<Set<NodeType>>(new Set())
   let showFilter = $state(false)
-  // Focus mode: the default view is one node's local neighbourhood, not the whole
-  // hairball. The global view stays behind the "All" toggle.
-  let mode = $state<'focus' | 'all'>('focus')
+  // The legacy full-graph escape hatch, reached from any level via "All nodes" and left
+  // via the "Galaxy" crumb. It is a local toggle, never a URL, so drilling stays orthogonal.
+  let showAll = $state(false)
+  // Per-index focus inside the domain view: highlights one index's stars and fits the camera.
+  let focusIndexId = $state<string | null>(null)
+  // The all-view BFS focus (legacy click-to-zoom), only meaningful while showAll is true.
   let focusId = $state<string | null>(null)
-  let depth = $state(1)
 
   const highlightType = $derived((router.query.type as NodeType | undefined) ?? null)
 
-  // A scope drill-down from the Galaxy: /?index=<id> or /?domain=<id> isolates that
-  // partition's member stars. Reuses focus mode, so out-of-scope nodes fade and their
-  // cross-scope edges dim, exactly the association-layer treatment the spec asks for.
-  const scopeSel = $derived.by(() => {
-    if (!graph) return null
-    const indexId = router.query.index
-    const domainId = router.query.domain
-    if (indexId) {
-      const node = graph.nodes.find((n) => n.id === indexId)
-      return {
-        kind: 'index' as const, id: indexId, title: node?.title ?? 'index',
-        domainId: node?.domain_id ?? null,
-        members: new Set(graph.nodes.filter((n) => n.index_id === indexId).map((n) => n.id)),
-      }
-    }
-    if (domainId) {
-      const node = graph.nodes.find((n) => n.id === domainId)
-      return {
-        kind: 'domain' as const, id: domainId, title: node?.title ?? 'domain', domainId,
-        members: new Set(graph.nodes.filter((n) => n.domain_id === domainId).map((n) => n.id)),
-      }
-    }
-    return null
+  // The drill-down level machine, derived from the URL scope params (+ the local escape
+  // hatch). No routes are added: /?domain= and /?index= are query drill-downs of '/'.
+  const level = $derived.by(() => {
+    if (showAll) return 'all'
+    if (router.query.index) return 'index'
+    if (router.query.domain) return 'domain'
+    return 'galaxy'
   })
 
-  const scopeDomainTitle = $derived.by(() =>
-    graph && scopeSel?.domainId ? (graph.nodes.find((n) => n.id === scopeSel!.domainId)?.title ?? null) : null,
+  // Client-side partitions of the single graph fetch, by node_kind.
+  const domains = $derived(graph ? graph.nodes.filter((n) => n.node_kind === 'domain') : [])
+  const indexes = $derived(graph ? graph.nodes.filter((n) => n.node_kind === 'index') : [])
+  const content = $derived(graph ? graph.nodes.filter((n) => (n.node_kind ?? 'node') === 'node') : [])
+
+  // Breadcrumb title resolution.
+  const currentDomain = $derived.by(() =>
+    level === 'domain' ? (domains.find((d) => d.id === router.query.domain) ?? null) : null,
+  )
+  const currentIndex = $derived.by(() =>
+    level === 'index' ? (indexes.find((i) => i.id === router.query.index) ?? null) : null,
+  )
+  const indexDomain = $derived.by(() =>
+    currentIndex?.domain_id ? (domains.find((d) => d.id === currentIndex!.domain_id) ?? null) : null,
   )
 
-  // The constellation renders content nodes only; domain/index scope rows are navigated
-  // via the Galaxy and carry no rune colour.
-  const contentGraph = $derived.by(() =>
-    graph ? { ...graph, nodes: graph.nodes.filter((n) => (n.node_kind ?? 'node') === 'node') } : null,
-  )
-
-  // Focus mode shows everything until the user clicks a node - nothing is auto-chosen.
-  // If the focused node vanished (deleted elsewhere), zoom back out to the whole graph.
-  $effect(() => {
-    if (!graph || !focusId) return
-    if (!graph.nodes.some((n) => n.id === focusId)) focusId = null
-  })
-
-  // Clear a stale selection: if another client deleted the selected node, the refreshed
-  // graph no longer contains it, so drop it before the detail panel's delete button gets
-  // a chance to 404 against a node that no longer exists.
-  $effect(() => {
-    if (!graph || !selected) return
-    if (!graph.nodes.some((n) => n.id === selected!.id)) selected = null
-  })
-
-  // The focus neighbourhood: BFS out to `depth` hops, undirected, with the same entity
-  // supernode cap as retrieval, so a shared rune never bridges unrelated clusters
-  // (unless it is itself the focus).
-  const focusIds = $derived.by(() => {
-    if (mode !== 'focus' || !focusId || !graph) return null
+  // The all-view focus neighbourhood: BFS out one hop, undirected, with the same entity
+  // supernode cap as retrieval so a shared rune never bridges unrelated clusters.
+  const allFocusIds = $derived.by(() => {
+    if (level !== 'all' || !focusId || !graph) return null
     const typeById = new Map(graph.nodes.map((n) => [n.id, n.type]))
     const adj = new Map<string, string[]>()
     const add = (a: string, b: string) => {
@@ -93,7 +69,7 @@
     }
     const seen = new Set<string>([focusId])
     let frontier = [focusId]
-    for (let d = 0; d < depth; d++) {
+    for (let d = 0; d < 1; d++) {
       const next: string[] = []
       for (const id of frontier) {
         if (id !== focusId && typeById.get(id) === 'entity') continue
@@ -109,17 +85,121 @@
     return seen
   })
 
-  // Clicking a node always opens its details. In focus mode it ALSO zooms into that
-  // node's neighbourhood (the hops, sized by the depth slider); in All mode the camera
-  // never moves. Switching to All zooms back out and clears the focus.
-  function handleSelect(node: GraphNode) {
-    selected = node
-    if (mode === 'focus') focusId = node.id
-  }
+  // The Constellation feed for the current level: its own graph partition, anchor spine,
+  // focus set, colour mode, and layout-persistence policy.
+  const view = $derived.by(() => {
+    if (!graph) return null
 
-  function setMode(m: 'focus' | 'all') {
-    mode = m
-    if (m === 'all') focusId = null
+    if (level === 'galaxy') {
+      const nodes = [...domains, ...indexes]
+      const edges = indexes
+        .filter((i) => i.domain_id)
+        .map((i) => ({ src: i.id, dst: i.domain_id!, rel: 'belongs_to', provenance: 'explicit' as const }))
+      return {
+        graph: { nodes, edges },
+        anchorIds: new Set(domains.map((d) => d.id)),
+        focusIds: null as Set<string> | null,
+        focusCenterId: null as string | null,
+        colorByCommunity: false,
+        persistLayout: false,
+      }
+    }
+
+    if (level === 'domain') {
+      const id = router.query.domain
+      const dIndexes = indexes.filter((i) => i.domain_id === id)
+      const dContent = content.filter((c) => c.domain_id === id)
+      const nodes = [...dIndexes, ...dContent]
+      const setIds = new Set(nodes.map((n) => n.id))
+      const realEdges = graph.edges.filter((e) => setIds.has(e.src) && setIds.has(e.dst))
+      const membershipEdges = dContent
+        .filter((c) => c.index_id && setIds.has(c.index_id))
+        .map((c) => ({ src: c.id, dst: c.index_id!, rel: 'belongs_to', provenance: 'explicit' as const }))
+      const focusIds = focusIndexId
+        ? new Set([focusIndexId, ...dContent.filter((c) => c.index_id === focusIndexId).map((c) => c.id)])
+        : null
+      return {
+        graph: { nodes, edges: [...realEdges, ...membershipEdges] },
+        anchorIds: new Set(dIndexes.map((i) => i.id)),
+        focusIds: focusIds as Set<string> | null,
+        focusCenterId: focusIndexId as string | null,
+        colorByCommunity: false,
+        persistLayout: false,
+      }
+    }
+
+    if (level === 'index') {
+      const id = router.query.index
+      const iContent = content.filter((c) => c.index_id === id)
+      const setIds = new Set(iContent.map((n) => n.id))
+      const realEdges = graph.edges.filter((e) => setIds.has(e.src) && setIds.has(e.dst))
+      return {
+        graph: { nodes: iContent, edges: realEdges },
+        anchorIds: null as Set<string> | null,
+        focusIds: null as Set<string> | null,
+        focusCenterId: null as string | null,
+        colorByCommunity: false,
+        persistLayout: false,
+      }
+    }
+
+    // all: the legacy canonical view, content only, saved layout, community tint at rest.
+    return {
+      graph: { ...graph, nodes: content },
+      anchorIds: null as Set<string> | null,
+      focusIds: allFocusIds,
+      focusCenterId: focusId as string | null,
+      colorByCommunity: !focusId,
+      persistLayout: true,
+    }
+  })
+
+  // Reset the per-index focus whenever the domain scope changes or we leave the domain level.
+  $effect(() => {
+    router.query.domain
+    level
+    focusIndexId = null
+  })
+
+  // The all-view BFS focus only lives inside the all view; drop it on the way out so a
+  // later re-entry opens on the community tint, not a stale focus.
+  $effect(() => {
+    if (level !== 'all') focusId = null
+  })
+
+  // If the focused/selected node vanished (deleted elsewhere), drop the stale reference.
+  $effect(() => {
+    if (!graph || !focusId) return
+    if (!graph.nodes.some((n) => n.id === focusId)) focusId = null
+  })
+  $effect(() => {
+    if (!graph || !selected) return
+    if (!graph.nodes.some((n) => n.id === selected!.id)) selected = null
+  })
+
+  // Click behaviour is per level: galaxy/domain navigate or focus; index/all open details.
+  function handleSelect(node: GraphNode) {
+    if (level === 'galaxy') {
+      if (node.node_kind === 'domain') navigate(`/?domain=${node.id}`)
+      else if (node.node_kind === 'index') navigate(`/?index=${node.id}`)
+      return
+    }
+    if (level === 'domain') {
+      if (node.node_kind === 'index') {
+        if (focusIndexId === node.id) navigate(`/?index=${node.id}`)
+        else focusIndexId = node.id
+      } else {
+        selected = node
+      }
+      return
+    }
+    if (level === 'index') {
+      selected = node
+      return
+    }
+    // all
+    selected = node
+    focusId = node.id
   }
 
   // Refetch on first mount and whenever a write bumps the graph version.
@@ -182,36 +262,33 @@
 </script>
 
 <main class="relative w-full h-screen bg-bg-page overflow-hidden">
-  <!-- Focus slider pill, beside the nav pill on the top row (drops below it when the
-       viewport is too narrow to share the row) -->
+  <!-- Breadcrumb / level pill (top-left), shared floating-pill styling -->
   {#if graph && graph.nodes.length > 0}
-    <div
-      title="Focus: click a node to zoom into its neighbourhood (hops set by depth). All: see everything; clicking only shows details."
-      class="fixed right-4 top-[4.75rem] xl:top-4 z-40 flex items-center gap-2 rounded-full bg-bg-panel/85 backdrop-blur-md border border-border-default p-1 shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
-    >
-      <div class="relative flex">
-        <div
-          aria-hidden="true"
-          class="absolute top-0 bottom-0 w-1/2 rounded-full bg-rune-quest/15 border border-rune-quest/40 transition-[left] duration-200"
-          style="left:{mode === 'focus' ? '0%' : '50%'}"
-        ></div>
-        {#each ['focus', 'all'] as const as m (m)}
-          <button
-            onclick={() => setMode(m)}
-            aria-pressed={mode === m}
-            class="relative w-16 py-1.5 rounded-full font-label-md text-label-md transition-colors"
-            style="color:{mode === m ? '#e3d3a0' : '#9b96b8'}"
-          >
-            {m === 'focus' ? 'Focus' : 'All'}
-          </button>
-        {/each}
-      </div>
-      {#if mode === 'focus'}
-        <label class="flex items-center gap-2 pr-3 pl-1 font-label-md text-label-md text-text-muted">
-          Depth
-          <input type="range" min="1" max="3" step="1" bind:value={depth} class="w-16" style="accent-color:#d4a93f" />
-          <span class="text-on-surface w-3 text-center">{depth}</span>
-        </label>
+    <div class="fixed left-4 top-[4.75rem] xl:top-4 z-40 flex items-center gap-1.5 rounded-full bg-bg-panel/85 backdrop-blur-md border border-border-default px-3 py-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.4)] font-label-md text-label-md">
+      {#if level === 'galaxy'}
+        <span class="text-primary uppercase tracking-widest">Galaxy</span>
+        <span class="text-text-tertiary">/</span>
+        <a href={link('/galaxy')} class="text-text-muted hover:text-primary uppercase tracking-widest">Manage</a>
+        <span class="w-px h-3 bg-border-default mx-0.5"></span>
+        <button onclick={() => (showAll = true)} class="text-text-muted hover:text-primary uppercase tracking-widest">All nodes</button>
+      {:else if level === 'domain'}
+        <a href={link('/')} class="text-text-muted hover:text-primary uppercase tracking-widest">Galaxy</a>
+        <span class="text-text-tertiary">/</span>
+        <span class="text-primary">{currentDomain?.title ?? 'Domain'}</span>
+        <span class="w-px h-3 bg-border-default mx-0.5"></span>
+        <button onclick={() => (showAll = true)} class="text-text-muted hover:text-primary uppercase tracking-widest">All nodes</button>
+      {:else if level === 'index'}
+        <a href={link('/')} class="text-text-muted hover:text-primary uppercase tracking-widest">Galaxy</a>
+        {#if indexDomain}
+          <span class="text-text-tertiary">/</span>
+          <a href={link(`/?domain=${indexDomain.id}`)} class="text-text-muted hover:text-primary">{indexDomain.title}</a>
+        {/if}
+        <span class="text-text-tertiary">/</span>
+        <span class="text-primary">{currentIndex?.title ?? 'Index'}</span>
+      {:else}
+        <button onclick={() => (showAll = false)} class="text-text-muted hover:text-primary uppercase tracking-widest">Galaxy</button>
+        <span class="text-text-tertiary">/</span>
+        <span class="text-primary uppercase tracking-widest">All nodes</span>
       {/if}
     </div>
   {/if}
@@ -275,34 +352,35 @@
     </div>
   </div>
 
-  {#if scopeSel}
-    <div class="fixed left-4 top-[4.75rem] xl:top-4 z-40 flex items-center gap-1.5 rounded-full bg-bg-panel/85 backdrop-blur-md border border-border-default px-3 py-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.4)] font-label-md text-label-md">
-      <a href={link('/galaxy')} class="text-text-muted hover:text-primary uppercase tracking-widest">Galaxy</a>
-      {#if scopeSel.kind === 'index' && scopeDomainTitle}
-        <span class="text-text-tertiary">/</span>
-        <a href={link(`/?domain=${scopeSel.domainId}`)} class="text-text-muted hover:text-primary">{scopeDomainTitle}</a>
-      {/if}
-      <span class="text-text-tertiary">/</span>
-      <span class="text-primary">{scopeSel.title}</span>
-      <a href={link('/')} class="ml-1 text-text-muted hover:text-primary flex items-center" title="Clear filter" aria-label="Clear scope filter">
-        <span class="material-symbols-outlined text-[16px]">close</span>
-      </a>
-    </div>
+  {#if view && view.graph.nodes.length > 0}
+    {#key `${level}:${router.query.domain ?? ''}:${router.query.index ?? ''}`}
+      <Constellation
+        graph={view.graph}
+        selectedId={selected?.id ?? null}
+        {highlightType}
+        filterText={query}
+        hiddenTypes={hidden}
+        focusIds={view.focusIds}
+        focusCenterId={view.focusCenterId}
+        colorByCommunity={view.colorByCommunity}
+        anchorIds={view.anchorIds}
+        persistLayout={view.persistLayout}
+        communityLabels={graph?.communities}
+        onSelect={handleSelect}
+      />
+    {/key}
   {/if}
 
-  {#if contentGraph && contentGraph.nodes.length > 0}
-    <Constellation
-      graph={contentGraph}
-      selectedId={selected?.id ?? null}
-      {highlightType}
-      filterText={query}
-      hiddenTypes={hidden}
-      focusIds={scopeSel ? scopeSel.members : focusIds}
-      focusCenterId={scopeSel ? null : (mode === 'focus' ? focusId : null)}
-      colorByCommunity={mode === 'all' && !scopeSel}
-      communityLabels={graph?.communities}
-      onSelect={handleSelect}
-    />
+  <!-- Galaxy with content but no taxonomy yet: point the user at Manage to bootstrap it. -->
+  {#if level === 'galaxy' && graph && graph.nodes.length > 0 && domains.length === 0}
+    <div class="absolute inset-0 flex items-center justify-center text-center px-6">
+      <div>
+        <p class="font-headline-md text-headline-md text-text-muted">No domains yet.</p>
+        <p class="font-body-md text-body-md text-text-tertiary mt-2">
+          Create your first domain in <a href={link('/galaxy')} class="text-primary hover:underline">Manage</a>, or bootstrap the taxonomy from your clusters via chat.
+        </p>
+      </div>
+    </div>
   {/if}
 
   {#if selected}

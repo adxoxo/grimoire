@@ -2,7 +2,7 @@
   import { untrack } from 'svelte'
   import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY } from 'd3'
   import { api, type Graph, type GraphNode } from '../lib/api'
-  import { RUNE, communityColor, edgeColor, type NodeType } from '../lib/theme'
+  import { RUNE, SCOPE, communityColor, edgeColor, nodeKindColor, type NodeType } from '../lib/theme'
 
   interface SimNode extends GraphNode {
     x: number
@@ -20,9 +20,27 @@
   const RADIUS: Record<NodeType, number> = { project: 30, memory: 20, document: 19, entity: 17 }
   const TAU = Math.PI * 2
 
+  // Node radius: scope rows (domain/index spine of the galaxy and domain views) render
+  // larger than content stars; content keeps the per-type radius, with RADIUS the fallback.
+  const radiusOf = (n: GraphNode) =>
+    n.node_kind === 'domain' ? 32 : n.node_kind === 'index' ? 24 : RADIUS[n.type]
+
+  // Icon glyph: scope rows carry the SCOPE hub/category marks; content carries its rune.
+  const iconOf = (n: GraphNode) =>
+    n.node_kind === 'domain' || n.node_kind === 'index' ? SCOPE[n.node_kind].icon : RUNE[n.type]?.icon ?? ''
+
+  // Edge colour, scope-aware: a membership/hierarchy edge (one endpoint a domain/index)
+  // takes the scope's gold family colour; content-to-content edges follow the parent rune.
+  const linkColor = (s: GraphNode, t: GraphNode): string => {
+    if (t.node_kind === 'domain' || t.node_kind === 'index') return nodeKindColor(t)
+    if (s.node_kind === 'domain' || s.node_kind === 'index') return nodeKindColor(s)
+    return edgeColor(s.type, t.type)
+  }
+
   // Anchors are the fixed spine of the constellation; leaves settle around them and
-  // freeze. Projects (quest lines) are the only anchor type in this graph.
-  const isAnchor = (n: GraphNode) => n.type === 'project'
+  // freeze. By default projects (quest lines) are the anchors, but a caller can override
+  // the spine with anchorIds (the galaxy pins domains, a domain view pins its indexes).
+  const isAnchor = (n: GraphNode) => (anchorIds ? anchorIds.has(n.id) : n.type === 'project')
 
   // Edge stiffness by relationship: tight and strong for ownership so leaves hug their
   // quest line; loose and weak for cross-references so they do not collapse clusters.
@@ -48,6 +66,8 @@
     focusIds = null,
     focusCenterId = null,
     colorByCommunity = false,
+    anchorIds = null,
+    persistLayout = true,
     communityLabels,
     onSelect,
   }: {
@@ -64,6 +84,12 @@
     // Global view: tint nodes by Louvain community instead of rune type, and label
     // each cluster at its centroid. Focus mode keeps the four rune colours.
     colorByCommunity?: boolean
+    // Override the anchor spine: when set, these ids are the pinned anchors instead of
+    // the default type==='project'. null keeps the legacy project-spine behaviour.
+    anchorIds?: Set<string> | null
+    // Whether drags and settles persist to the server layout. Drill-down views are
+    // ephemeral partitions, so they pass false to keep the canonical layout clean.
+    persistLayout?: boolean
     communityLabels?: Record<string, { label: string }>
     onSelect: (node: GraphNode) => void
   } = $props()
@@ -132,7 +158,11 @@
   }
 
   const nodeColor = (n: SimNode) =>
-    colorByCommunity && n.community_id != null ? communityColor(n.community_id) : RUNE[n.type].color
+    n.node_kind === 'domain' || n.node_kind === 'index'
+      ? nodeKindColor(n)
+      : colorByCommunity && n.community_id != null
+        ? communityColor(n.community_id)
+        : RUNE[n.type].color
 
   function scheduleDraw() {
     if (rafPending) return
@@ -154,7 +184,8 @@
       if (focusSet && !focusSet.has(n.id)) continue // faded out = not clickable
       const dx = p.x - n.x
       const dy = p.y - n.y
-      if (dx * dx + dy * dy <= RADIUS[n.type] * RADIUS[n.type]) return n
+      const r = radiusOf(n)
+      if (dx * dx + dy * dy <= r * r) return n
     }
     return null
   }
@@ -188,7 +219,7 @@
       ctx.setLineDash(l.inferred ? [4, 4] : [])
       const sameCommunity =
         colorByCommunity && s.community_id != null && s.community_id === t.community_id
-      ctx.strokeStyle = sameCommunity ? communityColor(s.community_id!) : edgeColor(s.type, t.type)
+      ctx.strokeStyle = sameCommunity ? communityColor(s.community_id!) : linkColor(s, t)
       ctx.beginPath()
       ctx.moveTo(s.x, s.y)
       ctx.lineTo(t.x, t.y)
@@ -226,7 +257,7 @@
     ctx.globalCompositeOperation = 'lighter'
     for (const n of nodes) {
       if (!vis(n) || !matched(n)) continue
-      const r = RADIUS[n.type]
+      const r = radiusOf(n)
       const hot = n.id === selectedId || n.id === hoverId
       const size = r * (hot ? 4.4 : 3.4)
       ctx.globalAlpha = (hot ? 0.9 : 0.5) * focusFactor(n.id, nowT)
@@ -241,7 +272,7 @@
     ctx.textBaseline = 'middle'
     for (const n of nodes) {
       if (!vis(n)) continue
-      const r = RADIUS[n.type]
+      const r = radiusOf(n)
       const sel = n.id === selectedId
       const dim = !matched(n)
       const color = nodeColor(n)
@@ -272,14 +303,14 @@
       if (fontReady) {
         ctx.fillStyle = color
         ctx.font = `${Math.round(r * 0.9)}px "Material Symbols Outlined"`
-        ctx.fillText(RUNE[n.type].icon, n.x, n.y + 1)
+        ctx.fillText(iconOf(n), n.x, n.y + 1)
       }
 
-      // Declutter: only the spine (projects), the selected/hovered node, and a zoomed-in
-      // view show labels. The hovered/selected label gets a dark backdrop so it stays
-      // legible over edges and neighbours.
+      // Declutter: only the spine (projects and scope rows), the selected/hovered node,
+      // and a zoomed-in view show labels. The hovered/selected label gets a dark backdrop
+      // so it stays legible over edges and neighbours.
       const hot = sel || n.id === hoverId
-      if (hot || n.type === 'project' || cam.k >= 1.1) {
+      if (hot || n.type === 'project' || n.node_kind === 'domain' || n.node_kind === 'index' || cam.k >= 1.1) {
         const label = n.title.length > 22 ? n.title.slice(0, 21) + '…' : n.title
         ctx.font = '11px "Spectral", sans-serif'
         const ly = n.y + r + 12
@@ -374,7 +405,8 @@
         dragging.fx = dragging.x
         dragging.fy = dragging.y
         posMap.set(dragging.id, { x: dragging.x, y: dragging.y, pinned: true })
-        api.saveLayout([{ node_id: dragging.id, x: dragging.x, y: dragging.y, pinned: true }]).catch(() => {})
+        if (persistLayout)
+          api.saveLayout([{ node_id: dragging.id, x: dragging.x, y: dragging.y, pinned: true }]).catch(() => {})
       } else {
         if (!isAnchor(dragging) && !posMap.get(dragging.id)?.pinned) {
           dragging.fx = null
@@ -530,7 +562,7 @@
             .strength((l) => (EDGE_STIFFNESS[l.rel] ?? DEFAULT_STIFFNESS).strength),
         )
         .force('charge', forceManyBody<SimNode>().strength(-320))
-        .force('collide', forceCollide<SimNode>((d) => RADIUS[d.type] + 14))
+        .force('collide', forceCollide<SimNode>((d) => radiusOf(d) + 14))
         // Weak pull toward the ring centre so unbounded charge repulsion cannot
         // explode the leaves off-viewport (it only acts during this bounded settle;
         // the layout freezes right after).
@@ -552,7 +584,7 @@
         posMap.set(n.id, { x: n.x, y: n.y, pinned })
         batch.push({ node_id: n.id, x: n.x, y: n.y, pinned })
       }
-      if (batch.length > 0) api.saveLayout(batch).catch(() => {})
+      if (persistLayout && batch.length > 0) api.saveLayout(batch).catch(() => {})
     }
 
     // Release the temporary pins on unpinned leaves so a drag can move them freely.

@@ -105,6 +105,27 @@ class Settings(BaseSettings):
     autofile_threshold: float = 0.75
     summary_stale_after: int = 10
 
+    # --- Retrieval association expansion ---
+    # After scoped search returns hits, walk 1 hop along live edges from each non-entity
+    # hit and return those neighbours as a `related` block (association, not narrowing;
+    # the taxonomy already did the narrowing). related_per_hit caps neighbours per hit,
+    # related_min_confidence floors the edge confidence considered. project_max_hops is
+    # the hop limit for the legacy project-scoped graph narrow (candidate_node_ids).
+    expand_related: bool = True
+    related_per_hit: int = 6
+    related_min_confidence: float = 0.0
+    project_max_hops: int = 1
+
+    # --- In-process maintenance scheduler ---
+    # The API process runs compaction + backup on boot, daily, and shutdown (see
+    # grimoire/scheduler.py). scheduler_enabled turns it off entirely. The staleness
+    # guard skips compaction when the last run was within maintenance_min_interval_hours
+    # (so frequent boots do not recompact redundantly). backup_retain is the number of
+    # most-recent backups kept when pruning.
+    scheduler_enabled: bool = True
+    maintenance_min_interval_hours: float = 20.0
+    backup_retain: int = 14
+
     # --- Remote MCP hosting (optional) ---
     # stdio (default) = local subprocess launched per-agent by the MCP client.
     # http            = a long-running network daemon other agents reach by URL.

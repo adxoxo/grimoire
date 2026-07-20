@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from grimoire.cluster import community_labels, recluster
+from grimoire.cluster import community_labels
 from grimoire.compaction import compact_project, consolidate_context
 from grimoire.config import settings
 from grimoire.distill import capture_session
@@ -29,11 +29,12 @@ from grimoire.planner.web import router as planner_router
 from grimoire.providers import get_provider
 from grimoire.rerank import get_reranker
 from grimoire.reembed import reembed_all
+from grimoire.scheduler import lifespan
 from grimoire.scribe import scribe_from_text, suggest_project_for_document
 from grimoire.service import KnowledgeService
 from grimoire.store import Repository
 
-app = FastAPI(title="The Grimoire", version="0.1.0")
+app = FastAPI(title="The Grimoire", version="0.1.0", lifespan=lifespan)
 
 
 class _WriteAuthASGI:
@@ -233,14 +234,18 @@ def search(
                 q, project=project, scope=scope, route=route, k=k,
                 rerank_candidates=settings.rerank_candidates, mode=mode,
                 route_threshold=settings.route_threshold, route_top_k=settings.route_top_k,
-                k_min=settings.retrieve_k_min,
+                k_min=settings.retrieve_k_min, project_max_hops=settings.project_max_hops,
+                expand_related=settings.expand_related,
+                related_per_hit=settings.related_per_hit,
+                related_min_confidence=settings.related_min_confidence,
             )
         except Exception as exc:  # noqa: BLE001 - surfaced to the client as 503
             raise HTTPException(
                 status_code=503,
                 detail=f"search needs the embedding model running: {exc}",
             ) from exc
-        return {"query": q, "results": out["results"], "routing": out["routing"]}
+        return {"query": q, "results": out["results"],
+                "related": out.get("related", []), "routing": out["routing"]}
 
 
 # ---- n8n capture webhook (Phase 4): one endpoint, two payload types ----
@@ -394,16 +399,10 @@ def run_compaction() -> dict:
 
 @app.post("/api/maintenance/reembed")
 def run_reembed() -> dict:
-    """Re-embed every chunk through the provider (the model-change maintenance path)."""
+    """Re-embed every chunk and scope summary through the provider (the model-change
+    maintenance path). Returns the chunk and scope counts re-embedded."""
     with _repo() as repo:
         return {"reembedded": reembed_all(repo, _provider)}
-
-
-@app.post("/api/maintenance/recluster")
-def run_recluster() -> dict:
-    """Recompute Louvain communities over the graph and persist them on nodes."""
-    with _repo() as repo:
-        return recluster(repo)
 
 
 # ---- taxonomy: scopes, the classification inbox, summaries (V2) ----
@@ -497,6 +496,33 @@ def classify_node(node_id: str, payload: ClassifyBody) -> dict:
         if out is None:
             raise HTTPException(status_code=404, detail="node not found")
         return out
+
+
+@app.post("/api/nodes/{node_id}/autoclassify")
+def autoclassify_node(node_id: str, use_llm: bool = True) -> dict:
+    """Auto-file one inbox node into its best index (LLM over vector routing). Degrades
+    to the vector path when the LLM is unavailable; files only on a confident match."""
+    with _repo() as repo:
+        svc = KnowledgeService(repo, _provider)
+        try:
+            return svc.auto_classify_node(
+                node_id, use_llm=use_llm, autofile_threshold=settings.autofile_threshold
+            )
+        except Exception as exc:  # noqa: BLE001 - embedding/LLM needs the provider
+            raise HTTPException(status_code=503, detail=f"autoclassify needs the provider: {exc}") from exc
+
+
+@app.post("/api/inbox/autofile")
+def autofile_inbox(use_llm: bool = True, limit: int | None = None) -> dict:
+    """Auto-file the whole inbox in one pass; returns the filed/skipped split."""
+    with _repo() as repo:
+        svc = KnowledgeService(repo, _provider)
+        try:
+            return svc.auto_classify_inbox(
+                limit=limit, use_llm=use_llm, autofile_threshold=settings.autofile_threshold
+            )
+        except Exception as exc:  # noqa: BLE001 - embedding/LLM needs the provider
+            raise HTTPException(status_code=503, detail=f"autofile needs the provider: {exc}") from exc
 
 
 # ---- serve the built dashboard (production / Docker) ----

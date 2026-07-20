@@ -114,6 +114,7 @@ class KnowledgeService:
         k: int = 10,
         rerank_candidates: int = 25,
         mode: str = "hybrid",
+        max_hops: int = 1,
     ) -> list[dict]:
         """Graph-narrow, then search by `mode`, then (if a re-ranker is configured) a
         local cross-encoder re-rank of the top candidates.
@@ -124,8 +125,8 @@ class KnowledgeService:
         (similarity x recency, the pre-hybrid behaviour). 'keyword' is BM25 only and
         needs no embedding provider at all.
 
-        With a project, candidates are narrowed to its 1-2 hop neighbourhood (entity cap
-        applied in the repository) before scoring. Without one, all chunks score. The
+        With a project, candidates are narrowed to its `max_hops` neighbourhood (entity
+        cap applied in the repository) before scoring. Without one, all chunks score. The
         re-rank is best-effort: if the model is unavailable it falls back to the score
         order, so retrieval never depends on the re-ranker being loadable.
         """
@@ -136,7 +137,7 @@ class KnowledgeService:
             proj = self.repo.get_project(project)
             if proj is None:
                 return []
-            node_ids = self.repo.candidate_node_ids(proj["id"])
+            node_ids = self.repo.candidate_node_ids(proj["id"], max_hops=max_hops)
         return self._search_chunks(query, node_ids, k, mode, rerank_candidates)
 
     def _search_chunks(
@@ -199,8 +200,13 @@ class KnowledgeService:
         route_threshold: float = 0.35,
         route_top_k: int = 2,
         k_min: int = 3,
+        project_max_hops: int = 1,
+        expand_related: bool = True,
+        related_per_hit: int = 6,
+        related_min_confidence: float = 0.0,
     ) -> dict:
-        """Two-stage scoped retrieval (V2). Returns {"results": [...], "routing": {...}}.
+        """Two-stage scoped retrieval (V2). Returns {"results": [...], "related": [...],
+        "routing": {...}}.
 
         Precedence: an explicit `project` keeps the legacy graph-narrow behaviour; an
         explicit `scope` ({domain_id?/index_id?}) pins the partition; otherwise, when
@@ -215,8 +221,12 @@ class KnowledgeService:
         # Legacy project scoping stays exactly as before (backward compatible).
         if project:
             results = self.retrieve(query, project=project, k=k,
-                                    rerank_candidates=rerank_candidates, mode=mode)
-            return {"results": results,
+                                    rerank_candidates=rerank_candidates, mode=mode,
+                                    max_hops=project_max_hops)
+            related = self._expand_related(
+                results, enabled=expand_related,
+                per_hit=related_per_hit, min_confidence=related_min_confidence)
+            return {"results": results, "related": related,
                     "routing": {"mode": "project", "project": project}}
 
         q_emb: list[float] | None = None
@@ -267,7 +277,45 @@ class KnowledgeService:
         scopes = self.repo.node_scopes([r["node_id"] for r in results])
         for r in results:
             r["scope"] = scopes.get(r["node_id"], {})
-        return {"results": results, "routing": routing}
+        related = self._expand_related(
+            results, enabled=expand_related,
+            per_hit=related_per_hit, min_confidence=related_min_confidence)
+        return {"results": results, "related": related, "routing": routing}
+
+    def _expand_related(
+        self,
+        results: list[dict],
+        enabled: bool = True,
+        per_hit: int = 6,
+        min_confidence: float = 0.0,
+    ) -> list[dict]:
+        """1-hop association expansion from search hits. Mirrors the entity supernode
+        cap: does not expand OUT of entity hits (they over-connect). Deduped by
+        node_id, excludes nodes already in results, annotated with which hit each came
+        from and the neighbor's own scope breadcrumb (may cross partitions)."""
+        if not enabled or not results:
+            return []
+        seeds = [r["node_id"] for r in results if r.get("type") != "entity"]
+        result_ids = {r["node_id"] for r in results}
+        neigh = self.repo.neighbors(
+            seeds, per_node=per_hit, min_confidence=min_confidence, exclude=result_ids
+        )
+        by_node: dict[str, dict] = {}
+        for seed_id in seeds:
+            for n in neigh.get(seed_id, []):
+                item = {
+                    "node_id": n["node_id"], "title": n["title"], "type": n["type"],
+                    "rel": n["rel"], "confidence": n["confidence"], "from_node_id": seed_id,
+                }
+                prev = by_node.get(item["node_id"])
+                if prev is None or item["confidence"] > prev["confidence"]:
+                    by_node[item["node_id"]] = item
+        items = list(by_node.values())
+        scopes = self.repo.node_scopes([it["node_id"] for it in items])
+        for it in items:
+            it["scope"] = scopes.get(it["node_id"], {})
+        items.sort(key=lambda x: x["confidence"], reverse=True)
+        return items
 
     def _rerank(self, query: str, candidates: list[dict]) -> list[dict]:
         """Second-stage re-rank of candidates by a local cross-encoder relevance score.
@@ -340,6 +388,121 @@ class KnowledgeService:
             return {"status": "filed", **proposal, "placement": placed}
         self.repo.update_node_meta(node_id, {"classification": proposal})
         return {"status": "proposed", **proposal}
+
+    def _filed_result(self, node_id: str, index_id: str, score: float, reason: str) -> dict:
+        """File a node into an index and build the auto-classify success payload."""
+        self.repo.classify_node(node_id, index_id)
+        crumb = self.repo.node_breadcrumb(node_id)
+        return {"node_id": node_id, "filed": True, "index_id": index_id,
+                "index": crumb.get("index"), "domain": crumb.get("domain"),
+                "score": score, "reason": reason}
+
+    def auto_classify_node(
+        self, node_id: str, use_llm: bool = True, autofile_threshold: float = 0.75
+    ) -> dict:
+        """Auto-file one unclassified content node into its best index. An LLM chooses
+        among the top vector-ranked candidate indexes; on any LLM failure it degrades to
+        the vector path (file only when the top vector score clears autofile_threshold).
+        An LLM pick is trusted even below the vector bar; an LLM that abstains blocks a
+        weak-vector auto-file. Returns
+        {"node_id", "filed", "index_id", "index", "domain", "score", "reason"}."""
+        base = {"node_id": node_id, "filed": False, "index_id": None,
+                "index": None, "domain": None, "score": 0.0, "reason": ""}
+        node = self.repo.get_node(node_id)
+        if node is None:
+            return {**base, "reason": "node not found"}
+        if node.get("node_kind") not in (None, "node"):
+            return {**base, "reason": "not an unclassified content node"}
+        if node.get("index_id"):
+            return {**base, "reason": "already classified"}
+
+        title = node.get("title") or ""
+        snippet = (node.get("context_summary") or "").strip()[:1500]
+        text = f"{title}\n\n{snippet}".strip()
+
+        proposal = self.propose_classification(text, route_top_k=5)
+        if proposal is None:
+            scopes = self.repo.list_scopes()
+            has_index = any(d.get("indexes") for d in scopes.get("domains", []))
+            reason = "routing unavailable, needs review" if has_index else "no indexes exist yet"
+            return {**base, "reason": reason}
+
+        # Candidate indexes, highest vector similarity first (drop the create-new options).
+        candidates = [{
+            "index_id": proposal["proposed"]["index_id"],
+            "index": proposal["proposed"]["index"],
+            "confidence": float(proposal["confidence"]),
+        }]
+        for alt in proposal.get("alternatives", []):
+            if alt.get("index_id"):
+                candidates.append({"index_id": alt["index_id"], "index": alt["index"],
+                                   "confidence": float(alt["confidence"])})
+        top = candidates[0]
+
+        # LLM pick among the listed candidates (best-effort; abstains with NONE).
+        llm_pick: str | None = None
+        llm_consulted = False
+        if use_llm and candidates:
+            for c in candidates:
+                scope = self.repo.get_node(c["index_id"])
+                c["summary"] = ((scope or {}).get("summary") or "")[:300]
+            options = "\n".join(
+                f"- id={c['index_id']} | {c['index']}: {c['summary'] or '(no summary)'}"
+                for c in candidates
+            )
+            prompt = (
+                "File this note into the single most relevant index, or reply NONE if "
+                "none fit.\n\n"
+                f"Note title: {title}\n"
+                f"Note content:\n{snippet or '(no body)'}\n\n"
+                "Candidate indexes (pick exactly one id, or NONE):\n"
+                f"{options}\n\n"
+                "Reply with ONLY the chosen id, or NONE."
+            )
+            try:
+                reply = self.provider.complete(
+                    prompt,
+                    system="You file notes into the single best index of a knowledge base. "
+                           "Answer with one id from the list, or NONE.",
+                ).strip().lower()
+                for c in candidates:
+                    if c["index_id"].lower() in reply:
+                        llm_pick = c["index_id"]
+                        break
+                llm_consulted = True
+            except Exception:  # noqa: BLE001 - LLM down: fall back to the vector path
+                llm_pick = None
+                llm_consulted = False
+
+        if llm_pick is not None:
+            chosen = next(c for c in candidates if c["index_id"] == llm_pick)
+            return self._filed_result(node_id, chosen["index_id"], chosen["confidence"],
+                                      "LLM matched")
+        if not llm_consulted and top["confidence"] >= autofile_threshold:
+            return self._filed_result(node_id, top["index_id"], top["confidence"],
+                                      "high vector confidence")
+        return {**base, "score": top["confidence"], "reason": "no confident match, needs review"}
+
+    def auto_classify_inbox(
+        self, limit: int | None = None, use_llm: bool = True, autofile_threshold: float = 0.75
+    ) -> dict:
+        """Auto-file the classification inbox. Runs auto_classify_node over each
+        unclassified node and splits the outcomes. Returns
+        {"filed_count", "skipped_count", "filed": [...], "skipped": [...]}."""
+        # limit=None means the whole inbox; resolve to the live count (SQLite rejects a
+        # NULL LIMIT), so a single call files everything waiting.
+        if limit is None:
+            limit = self.repo.unclassified_count()
+        items = self.repo.unclassified_nodes(limit=limit)
+        filed: list[dict] = []
+        skipped: list[dict] = []
+        for it in items:
+            res = self.auto_classify_node(
+                it["id"], use_llm=use_llm, autofile_threshold=autofile_threshold
+            )
+            (filed if res["filed"] else skipped).append(res)
+        return {"filed_count": len(filed), "skipped_count": len(skipped),
+                "filed": filed, "skipped": skipped}
 
     def refresh_summary(self, scope_id: str, summary_text: str | None = None) -> dict:
         """Regenerate (or accept a client-supplied) scope summary, embed it, store it,

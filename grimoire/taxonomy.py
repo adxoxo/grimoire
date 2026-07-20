@@ -20,6 +20,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Any
 
+from grimoire.cluster import recluster
 from grimoire.service import KnowledgeService
 from grimoire.store import Repository
 
@@ -27,7 +28,11 @@ from grimoire.store import Repository
 def propose_taxonomy(repo: Repository, sample_titles: int = 10) -> dict[str, Any]:
     """Sample each community for a naming pass. Returns communities largest-first, each
     with a size, a sample of member titles, and a type breakdown. Steps 2-3 (naming and
-    review) run in conversation from this payload; nothing is written here."""
+    review) run in conversation from this payload; nothing is written here.
+
+    Reclusters first so proposals always reflect a freshly clustered graph (community ids
+    are consumed only here and by the Galaxy viz, so clustering rides on bootstrap now)."""
+    recluster(repo)
     nodes = [n for n in repo.list_nodes() if n.get("node_kind", "node") == "node"]
     by_community: dict[int, list[dict]] = defaultdict(list)
     unclustered = 0

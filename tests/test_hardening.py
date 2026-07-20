@@ -67,9 +67,6 @@ def test_gateway_tools_dispatch(tmp_path: Path, monkeypatch):
     hist = call("kb_history", mem["node_id"])
     assert hist["node"]["id"] == mem["node_id"] and isinstance(hist["edges"], list)
 
-    clustered = call("kb_recluster")
-    assert set(clustered) == {"communities", "nodes"}
-
     # taxonomy layer
     domain = call("kb_create_domain", "Smoke domain")
     assert domain["id"]
@@ -259,7 +256,7 @@ def test_capture_requires_token(client, monkeypatch):
 def test_all_write_routes_guarded_reads_open(client, monkeypatch):
     monkeypatch.setattr(settings, "api_token", "sekrit")
     assert client.put("/api/layout", json=[]).status_code == 401
-    assert client.post("/api/maintenance/recluster").status_code == 401
+    assert client.post("/api/maintenance/compact").status_code == 401
     assert client.get("/api/graph").status_code == 200  # reads stay open
 
 
