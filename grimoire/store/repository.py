@@ -1150,6 +1150,28 @@ class Repository:
                 self._insert_chunk(mem_id, 0, summary, summary_embedding)
         return mem_id
 
+    # ---- full-fidelity read (drill-down-to-raw) -------------------------
+
+    def node_chunks(self, node_id: str) -> list[dict[str, Any]]:
+        """A node's stored chunk texts in sequence order: the full embedded text,
+        un-truncated (retrieval elsewhere clips context_summary to a snippet)."""
+        rows = self._conn.execute(
+            "SELECT seq, content FROM chunks WHERE node_id = ? ORDER BY seq",
+            (node_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_raw_turns(self, node_id: str) -> list[dict[str, Any]]:
+        """The raw conversation turns stored for a memory node, in order. The raw layer is
+        write-through and unindexed by design (only distilled summaries are embedded); this
+        is its read path, used by drill-down-to-raw when a summary is too thin."""
+        rows = self._conn.execute(
+            "SELECT turn_index, role, content, created_at FROM memory_raw"
+            " WHERE node_id = ? ORDER BY turn_index",
+            (node_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     # ---- re-embedding support (used by the re-embed routine) ------------
 
     def iter_chunks(self) -> Iterator[dict[str, Any]]:

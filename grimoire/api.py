@@ -21,7 +21,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from grimoire.cluster import community_labels
+from grimoire import jobs
+from grimoire.cluster import community_labels, recluster
 from grimoire.compaction import compact_project, consolidate_context
 from grimoire.config import settings
 from grimoire.distill import capture_session
@@ -153,6 +154,19 @@ def node(node_id: str) -> dict:
         if found is None:
             raise HTTPException(status_code=404, detail="node not found")
         return found
+
+
+@app.get("/api/nodes/{node_id}/full")
+def node_full(node_id: str) -> dict:
+    """Full-fidelity read of a node: its record, complete un-truncated chunk text, and
+    (for a chronicle) its raw conversation turns. The drill-down behind summary-first
+    retrieval; reads only, embeds nothing."""
+    with _repo() as repo:
+        svc = KnowledgeService(repo, _provider)
+        out = svc.read_node_full(node_id)
+        if out is None:
+            raise HTTPException(status_code=404, detail="node not found")
+        return out
 
 
 @app.delete("/api/nodes/{node_id}")
@@ -382,27 +396,70 @@ def delete_edge(src: str, dst: str, rel: str) -> dict:
 
 
 # ---- maintenance triggers (Task 4 settings panel) ----
+#
+# These jobs run for many seconds (LLM chains, whole-store re-embed). They run on a
+# background thread via the job registry so the POST returns at once; the client polls
+# GET /api/jobs for progress and the result. The registry dedupes per kind, so a
+# re-clicked button or a second tab cannot start an overlapping run. Each runner opens
+# its own Repository on its thread (SQLite wants one connection per unit of work).
 
 
 @app.post("/api/maintenance/compact")
 def run_compaction() -> dict:
-    """Run compaction + context consolidation across all projects (uses the LLM chain)."""
-    with _repo() as repo:
-        svc = KnowledgeService(repo, _provider)
-        results = []
-        for project in [n["title"] for n in repo.list_nodes(type="project")]:
-            stats = compact_project(svc, project)
-            consolidate_context(svc, project)
-            results.append(stats)
-    return {"compacted": results}
+    """Start compaction + context consolidation across all projects on a background
+    thread (uses the LLM chain). Returns the job snapshot; poll GET /api/jobs."""
+
+    def runner(report: jobs.ReportFn) -> dict:
+        with _repo() as repo:
+            svc = KnowledgeService(repo, _provider)
+            projects = [n["title"] for n in repo.list_nodes(type="project")]
+            results = []
+            for i, project in enumerate(projects):
+                report({"done": i, "total": len(projects), "detail": project})
+                stats = compact_project(svc, project)
+                consolidate_context(svc, project)
+                results.append(stats)
+            report({"done": len(projects), "total": len(projects), "detail": ""})
+        return {"compacted": results}
+
+    job, started = jobs.registry.start("compact", runner)
+    return {"job": job, "started": started}
 
 
 @app.post("/api/maintenance/reembed")
 def run_reembed() -> dict:
-    """Re-embed every chunk and scope summary through the provider (the model-change
-    maintenance path). Returns the chunk and scope counts re-embedded."""
-    with _repo() as repo:
-        return {"reembedded": reembed_all(repo, _provider)}
+    """Start a whole-store re-embed on a background thread (the model-change maintenance
+    path). Returns the job snapshot; the result carries the chunk and scope counts."""
+
+    def runner(report: jobs.ReportFn) -> dict:
+        with _repo() as repo:
+            def prog(count: int, _chunk: dict) -> None:
+                report({"done": count, "total": 0, "detail": "re-embedding chunks"})
+
+            return {"reembedded": reembed_all(repo, _provider, progress=prog)}
+
+    job, started = jobs.registry.start("reembed", runner)
+    return {"job": job, "started": started}
+
+
+@app.post("/api/maintenance/recluster")
+def run_recluster() -> dict:
+    """Recompute Louvain communities over the constellation on a background thread. The
+    global graph view colours its clusters from this. Returns the job snapshot."""
+
+    def runner(_report: jobs.ReportFn) -> dict:
+        with _repo() as repo:
+            return recluster(repo)
+
+    job, started = jobs.registry.start("recluster", runner)
+    return {"job": job, "started": started}
+
+
+@app.get("/api/jobs")
+def jobs_status() -> dict:
+    """Live status of the background maintenance jobs, latest per kind. Poll this while a
+    job runs; a read route, so it stays open even when writes are token-guarded."""
+    return jobs.registry.snapshot()
 
 
 # ---- taxonomy: scopes, the classification inbox, summaries (V2) ----
@@ -514,15 +571,24 @@ def autoclassify_node(node_id: str, use_llm: bool = True) -> dict:
 
 @app.post("/api/inbox/autofile")
 def autofile_inbox(use_llm: bool = True, limit: int | None = None) -> dict:
-    """Auto-file the whole inbox in one pass; returns the filed/skipped split."""
-    with _repo() as repo:
-        svc = KnowledgeService(repo, _provider)
-        try:
+    """Start a bulk auto-file of the inbox on a background thread. Returns the job
+    snapshot; the result carries the filed/skipped split. Poll GET /api/jobs for
+    progress (done/total) as items are filed."""
+
+    def runner(report: jobs.ReportFn) -> dict:
+        with _repo() as repo:
+            svc = KnowledgeService(repo, _provider)
+
+            def prog(done: int, total: int) -> None:
+                report({"done": done, "total": total, "detail": "filing inbox"})
+
             return svc.auto_classify_inbox(
-                limit=limit, use_llm=use_llm, autofile_threshold=settings.autofile_threshold
+                limit=limit, use_llm=use_llm,
+                autofile_threshold=settings.autofile_threshold, progress=prog,
             )
-        except Exception as exc:  # noqa: BLE001 - embedding/LLM needs the provider
-            raise HTTPException(status_code=503, detail=f"autofile needs the provider: {exc}") from exc
+
+    job, started = jobs.registry.start("autofile", runner)
+    return {"job": job, "started": started}
 
 
 # ---- serve the built dashboard (production / Docker) ----

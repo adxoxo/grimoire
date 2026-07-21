@@ -124,8 +124,15 @@ def kb_write_memory(
     summary: str,
     decisions: list[str] | None = None,
     entities: list[str] | None = None,
+    raw_turns: list[dict] | None = None,
 ) -> dict:
-    """Write a distilled session memory, embedded and linked to its project."""
+    """Write a distilled session memory, embedded and linked to its project.
+
+    Pass raw_turns (a list of {role, content}) to keep verbatim detail. The summary stays
+    distilled and is what gets embedded and retrieved; raw_turns are stored in the raw
+    layer, unindexed, and surfaced on demand via kb_read_node (drill-down-to-raw). Put the
+    exact commands, paths, names, and code that a summary would blur into raw_turns, so
+    the detail survives instead of being distilled away."""
     with tracer.start_as_current_span("kb_write_memory") as span:
         span.set_attribute("grimoire.project", project)
         with _service() as svc:
@@ -135,10 +142,23 @@ def kb_write_memory(
                 summary=summary,
                 decisions=decisions or [],
                 entities=entities or [],
+                raw_turns=raw_turns or None,
                 summary_embedding=emb,
             )
         span.set_attribute("grimoire.chunks_written", 1)
-        return {"node_id": mem_id, "chunks_written": 1}
+        return {"node_id": mem_id, "chunks_written": 1, "raw_turns_stored": len(raw_turns or [])}
+
+
+@mcp.tool
+def kb_read_node(node_id: str) -> dict:
+    """Full-fidelity read of one node: its record, complete un-truncated chunk text, and
+    (for a chronicle) its raw conversation turns. Use this to drill down after kb_retrieve
+    when a distilled summary is too thin to act on. Reads only; embeds nothing."""
+    with tracer.start_as_current_span("kb_read_node") as span:
+        span.set_attribute("grimoire.node_id", node_id)
+        with _service() as svc:
+            out = svc.read_node_full(node_id)
+        return out or {"error": f"node not found: {node_id}"}
 
 
 @mcp.tool

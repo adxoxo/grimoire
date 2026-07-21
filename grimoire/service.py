@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 import httpx
 
@@ -484,25 +485,49 @@ class KnowledgeService:
         return {**base, "score": top["confidence"], "reason": "no confident match, needs review"}
 
     def auto_classify_inbox(
-        self, limit: int | None = None, use_llm: bool = True, autofile_threshold: float = 0.75
+        self, limit: int | None = None, use_llm: bool = True, autofile_threshold: float = 0.75,
+        progress: Callable[[int, int], None] | None = None,
     ) -> dict:
         """Auto-file the classification inbox. Runs auto_classify_node over each
         unclassified node and splits the outcomes. Returns
-        {"filed_count", "skipped_count", "filed": [...], "skipped": [...]}."""
+        {"filed_count", "skipped_count", "filed": [...], "skipped": [...]}.
+
+        progress(done, total), when given, is called before each item and once more at the
+        end, so a background caller can report how far the pass has got."""
         # limit=None means the whole inbox; resolve to the live count (SQLite rejects a
         # NULL LIMIT), so a single call files everything waiting.
         if limit is None:
             limit = self.repo.unclassified_count()
         items = self.repo.unclassified_nodes(limit=limit)
+        total = len(items)
         filed: list[dict] = []
         skipped: list[dict] = []
-        for it in items:
+        for i, it in enumerate(items):
+            if progress is not None:
+                progress(i, total)
             res = self.auto_classify_node(
                 it["id"], use_llm=use_llm, autofile_threshold=autofile_threshold
             )
             (filed if res["filed"] else skipped).append(res)
+        if progress is not None:
+            progress(total, total)
         return {"filed_count": len(filed), "skipped_count": len(skipped),
                 "filed": filed, "skipped": skipped}
+
+    def read_node_full(self, node_id: str) -> dict | None:
+        """Full-fidelity read of one node: its record, its complete chunk text
+        (un-truncated), and, for a chronicle, its raw conversation turns. This is the
+        drill-down the summary-first retrieval path points at when a distilled summary is
+        too thin. It embeds nothing and adds no compute; it returns what the store already
+        holds. None when the node does not exist."""
+        node = self.repo.get_node(node_id)
+        if node is None:
+            return None
+        return {
+            "node": node,
+            "chunks": self.repo.node_chunks(node_id),
+            "raw_turns": self.repo.get_raw_turns(node_id),
+        }
 
     def refresh_summary(self, scope_id: str, summary_text: str | None = None) -> dict:
         """Regenerate (or accept a client-supplied) scope summary, embed it, store it,

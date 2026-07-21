@@ -164,6 +164,25 @@ export interface AutofileResult {
   skipped: AutoClassifyResult[]
 }
 
+// Background maintenance jobs (compaction, re-embed, recluster, inbox auto-file). The
+// POST that starts one returns a JobStart immediately; the outcome arrives by polling
+// GET /api/jobs. `result` is the kind's payload (shape depends on the job); read it only
+// once `status === 'done'`.
+export interface Job {
+  kind: string
+  status: 'running' | 'done' | 'failed'
+  started_at: string
+  finished_at: string | null
+  progress: { done: number; total: number; detail?: string } | null
+  result: unknown
+  error: string | null
+}
+
+export interface JobStart {
+  job: Job
+  started: boolean
+}
+
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
@@ -204,7 +223,8 @@ export interface NewNode {
 export const api = {
   graph: () => get<Graph>('/api/graph'),
   saveLayout: (positions: LayoutPosition[]) => put<{ saved: number }>('/api/layout', positions),
-  recluster: () => post<{ communities: number; nodes: number }>('/api/maintenance/recluster'),
+  recluster: () => post<JobStart>('/api/maintenance/recluster'),
+  jobsStatus: () => get<{ jobs: Record<string, Job> }>('/api/jobs'),
   project: (name: string) => get<Project>(`/api/projects/${encodeURIComponent(name)}`),
   node: (id: string) => get<Record<string, unknown>>(`/api/nodes/${encodeURIComponent(id)}`),
   review: () => get<{ items: ReviewItem[] }>('/api/review'),
@@ -227,7 +247,7 @@ export const api = {
     ),
   // LLM auto-classification: one node, or the whole inbox in a single bulk pass.
   autoClassify: (id: string) => post<AutoClassifyResult>(`/api/nodes/${encodeURIComponent(id)}/autoclassify`),
-  autofileInbox: () => post<AutofileResult>('/api/inbox/autofile'),
+  autofileInbox: () => post<JobStart>('/api/inbox/autofile'),
   createDomain: (title: string, why?: string) =>
     post<{ id: string; node_kind: 'domain'; title: string }>('/api/scopes/domain', { title, why }),
   createIndex: (domainId: string, title: string, why?: string) =>
@@ -259,11 +279,20 @@ export const api = {
     del<{ deleted: number }>(
       `/api/edges?src=${encodeURIComponent(src)}&dst=${encodeURIComponent(dst)}&rel=${encodeURIComponent(rel)}`,
     ),
-  compact: () =>
-    post<{ compacted: { project: string; clusters_merged: number; originals_archived: number }[] }>(
-      '/api/maintenance/compact',
-    ),
-  reembed: () => post<{ reembedded: number }>('/api/maintenance/reembed'),
+  compact: () => post<JobStart>('/api/maintenance/compact'),
+  reembed: () => post<JobStart>('/api/maintenance/reembed'),
+}
+
+// Job result payloads (read job.result once status === 'done').
+export interface CompactResult {
+  compacted: { project: string; clusters_merged: number; originals_archived: number }[]
+}
+export interface ReembedResult {
+  reembedded: { chunks: number; scopes: number }
+}
+export interface ReclusterResult {
+  communities: number
+  nodes: number
 }
 
 // ---------------------------------------------------------------------------
