@@ -112,7 +112,7 @@
 
   const heads: Record<Kind, string> = { task: 'Scribe a task', habit: 'Inscribe a ritual', goal: 'Set a vector' }
   const field = 'w-full bg-surface-container-low border border-border-default rounded px-3 py-2 text-on-surface font-body-md text-body-md focus:outline-none focus:border-rune-entity/60'
-  const lbl = 'font-label-md text-label-md text-text-muted uppercase tracking-widest mb-1 block'
+  const lbl = 'font-label-md text-label-md text-text-muted mb-1 block'
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -236,9 +236,9 @@
     </div>
 
     <div class="flex justify-end gap-3 mt-6">
-      <button onclick={onClose} class="px-4 py-2 text-text-muted hover:text-on-surface font-label-md text-label-md uppercase tracking-wider">Cancel</button>
+      <button onclick={onClose} class="px-4 py-2 text-text-muted hover:text-on-surface font-label-md text-label-md">Cancel</button>
       <button onclick={submit} disabled={busy || !title.trim()}
-        class="px-5 py-2 bg-surface text-primary-container border border-primary-container rounded hover:shadow-[0_0_15px_rgba(212,169,63,0.3)] transition-all font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">
+        class="px-5 py-2 bg-surface text-primary-container border border-primary-container rounded hover:shadow-[0_0_15px_rgba(212,169,63,0.3)] transition-all font-label-md text-label-md disabled:opacity-40">
         {busy ? 'Scribing...' : 'Scribe'}
       </button>
     </div>

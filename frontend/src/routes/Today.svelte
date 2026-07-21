@@ -53,7 +53,7 @@
   })
 
   function fmtDateline(): string {
-    return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase()
+    return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
   }
 
   function setEditing(id: string, on: boolean) {
@@ -170,19 +170,19 @@
         inputClassName="w-full bg-surface-container-low border border-rune-entity/60 rounded px-1.5 py-0.5 text-on-surface font-body-md text-body-md focus:outline-none" />
       <div class="flex items-center gap-3 mt-1 flex-wrap">
         {#if t.area_name}
-          <span class="font-label-md text-[9px] uppercase px-1.5 py-0.5 rounded border"
+          <span class="font-label-md text-[9px] px-1.5 py-0.5 rounded border"
             style="color:{t.area_color ?? accent}; border-color:{`${t.area_color ?? accent}4d`}; background:{`${t.area_color ?? accent}0d`}">
             {t.area_name}
           </span>
         {/if}
         {#if t.goal_title}
-          <span class="font-label-md text-[9px] uppercase text-text-tertiary flex items-center gap-0.5">
+          <span class="font-label-md text-[9px] text-text-tertiary flex items-center gap-0.5">
             <span class="material-symbols-outlined text-[11px]">flag</span>{t.goal_title}
           </span>
         {/if}
         {#if questLine}
           <a href={`#/project/${encodeURIComponent(questLine)}`} onclick={(e) => e.stopPropagation()}
-            class="font-label-md text-[9px] uppercase text-rune-quest hover:underline flex items-center gap-0.5">
+            class="font-label-md text-[9px] text-rune-quest hover:underline flex items-center gap-0.5">
             <span class="material-symbols-outlined text-[11px]">account_tree</span>{questLine}
           </a>
         {/if}
@@ -193,7 +193,7 @@
         {/if}
         {#if overdue}
           <span class="font-label-md text-[10px] text-status-error flex items-center gap-1">
-            <span class="material-symbols-outlined text-[12px]">warning</span>DUE
+            <span class="material-symbols-outlined text-[12px]">warning</span>Due
           </span>
         {/if}
       </div>
@@ -215,7 +215,7 @@
       <div class="flex-1 min-w-0">
         <div class="flex justify-between items-baseline mb-1.5 gap-3">
           <InlineEdit value={g.title} onSave={(t) => renameGoal(g.id, t)} textClassName="font-body-md text-body-md text-on-surface" />
-          <span class="font-label-md text-[10px] text-text-tertiary uppercase shrink-0">
+          <span class="font-label-md text-[10px] text-text-tertiary shrink-0">
             {g.target_date ? new Date(g.target_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'no date'}
           </span>
         </div>
@@ -245,8 +245,8 @@
       <div class="mb-md"><DayStrip /></div>
       <header class="pb-md flex justify-between items-center">
         <div>
-          <h1 class="font-headline-lg text-headline-lg text-rune-quest tracking-widest mb-0.5 capitalize">{label}</h1>
-          <p class="font-label-md text-label-md text-text-muted uppercase tracking-[0.2em]">{fmtDateline()}</p>
+          <h1 class="font-headline-lg text-headline-lg text-rune-quest mb-0.5 capitalize">{label}</h1>
+          <p class="font-label-md text-label-md text-text-muted">{fmtDateline()}</p>
         </div>
         <div class="relative w-10 h-10 flex items-center justify-center text-primary opacity-70 overflow-hidden">
           <span class="material-symbols-outlined text-[24px] sigil-spin">auto_awesome</span>
@@ -258,9 +258,9 @@
         <!-- habits strip -->
         <section class="flex flex-col gap-3">
           <div class="flex justify-between items-center px-1">
-            <h3 class="font-label-md text-label-md text-text-muted tracking-widest uppercase">Rituals &amp; goals</h3>
+            <h3 class="font-label-md text-label-md text-text-muted">Rituals &amp; goals</h3>
             <div class="flex items-center gap-3">
-              <span class="font-label-md text-label-md text-rune-quest/80">THIS WEEK · {data.weekly.overall_percent}%</span>
+              <span class="font-label-md text-label-md text-rune-quest/80">This week · {data.weekly.overall_percent}%</span>
               <button onclick={() => (dialog = { kind: 'habit' })} class="material-symbols-outlined text-[18px] text-text-tertiary hover:text-on-surface" aria-label="Add ritual">add</button>
             </div>
           </div>
@@ -335,7 +335,7 @@
         <!-- goals rail -->
         <section class="flex flex-col gap-3">
           <div class="flex justify-between items-center px-1">
-            <h3 class="font-label-md text-label-md text-text-muted tracking-widest uppercase">Active vectors</h3>
+            <h3 class="font-label-md text-label-md text-text-muted">Active vectors</h3>
             <button onclick={() => (dialog = { kind: 'goal' })} class="material-symbols-outlined text-[18px] text-text-tertiary hover:text-on-surface" aria-label="Add goal">add</button>
           </div>
           <div class="flex flex-col gap-2">

@@ -20,7 +20,7 @@
 </script>
 
 <div class="min-h-screen overflow-y-auto px-margin py-lg">
-  <a href={link('/')} class="font-label-md text-label-md text-text-muted hover:text-primary uppercase tracking-widest inline-flex items-center gap-1">
+  <a href={link('/')} class="font-label-md text-label-md text-text-muted hover:text-primary inline-flex items-center gap-1">
     <span class="material-symbols-outlined text-[16px]">arrow_back</span> Constellation
   </a>
 
@@ -33,7 +33,7 @@
       <header class="mb-lg flex items-center gap-3 border-b border-border-subtle pb-6">
         <span class="material-symbols-outlined text-rune-tome text-[32px]" style="filter:drop-shadow(0 0 8px #5b8dd9)">menu_book</span>
         <div>
-          <span class="font-label-md text-label-md text-rune-tome uppercase tracking-widest">Tome</span>
+          <span class="font-label-md text-label-md text-rune-tome">Tome</span>
           <h1 class="font-headline-lg text-headline-lg text-primary leading-none">{doc.title}</h1>
         </div>
       </header>

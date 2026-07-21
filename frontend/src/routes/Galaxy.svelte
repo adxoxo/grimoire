@@ -58,20 +58,20 @@
 
 <div class="min-h-screen overflow-y-auto px-margin py-lg max-w-5xl mx-auto">
   <!-- Breadcrumb -->
-  <nav class="flex items-center gap-1.5 font-label-md text-label-md uppercase tracking-widest text-text-muted">
+  <nav class="flex items-center gap-1.5 font-label-md text-label-md text-text-muted">
     <a href={link('/')} class="hover:text-primary">Constellation</a>
     <span class="text-text-tertiary">/</span>
     <button class="hover:text-primary {openDomain ? '' : 'text-primary'}" onclick={() => (openDomainId = null)}>Galaxy</button>
     {#if openDomain}
       <span class="text-text-tertiary">/</span>
-      <span class="text-primary normal-case tracking-normal">{openDomain.title}</span>
+      <span class="text-primary">{openDomain.title}</span>
     {/if}
   </nav>
 
   <header class="mt-6 mb-lg flex items-center gap-3 border-b border-border-subtle pb-6">
     <span class="material-symbols-outlined text-[32px]" style="color:{SCOPE.domain.color};filter:drop-shadow(0 0 8px {SCOPE.domain.color})">{SCOPE.domain.icon}</span>
     <div>
-      <span class="font-label-md text-label-md uppercase tracking-widest" style="color:{SCOPE.domain.color}">
+      <span class="font-label-md text-label-md" style="color:{SCOPE.domain.color}">
         {openDomain ? 'Domain' : 'The galaxy'}
       </span>
       <h1 class="font-headline-lg text-headline-lg text-primary leading-none">{openDomain ? openDomain.title : 'Domains & indexes'}</h1>
@@ -92,7 +92,7 @@
       <input bind:value={newDomain} placeholder="New domain, e.g. Content automation"
         class="flex-1 min-w-0 bg-bg-surface border border-border-default rounded px-3 py-2 font-body-sm text-body-sm text-on-surface" />
       <button onclick={createDomain} disabled={busy !== null || !newDomain.trim()}
-        class="px-4 py-2 border border-primary-container text-primary-container rounded font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">Create</button>
+        class="px-4 py-2 border border-primary-container text-primary-container rounded font-label-md text-label-md disabled:opacity-40">Create</button>
     </div>
 
     {#if scopes.domains.length === 0}
@@ -119,7 +119,7 @@
             <p class="font-body-sm text-body-sm text-text-tertiary italic">No routing summary yet.</p>
           {/if}
           <div class="mt-auto flex items-center gap-2 pt-2">
-            <button onclick={() => (openDomainId = d.id)} class="px-3 py-1.5 border border-border-default rounded font-label-md text-label-md uppercase tracking-wider text-text-muted hover:text-primary hover:border-primary/50">Open</button>
+            <button onclick={() => (openDomainId = d.id)} class="px-3 py-1.5 border border-border-default rounded font-label-md text-label-md text-text-muted hover:text-primary hover:border-primary/50">Open</button>
             <button onclick={() => refresh(d.id)} disabled={busy !== null} title="Regenerate routing summary" class="w-8 h-8 flex items-center justify-center rounded border border-border-default text-text-muted hover:text-primary disabled:opacity-40">
               <span class="material-symbols-outlined text-[16px]">{busy === `refresh-${d.id}` ? 'hourglass_empty' : 'refresh'}</span>
             </button>
@@ -139,9 +139,9 @@
         <input bind:value={newIndexTitle} placeholder="New index, e.g. YouTube"
           class="flex-1 min-w-0 bg-bg-surface border border-border-default rounded px-3 py-2 font-body-sm text-body-sm text-on-surface" />
         <button onclick={createIndex} disabled={busy !== null || !newIndexTitle.trim()}
-          class="px-4 py-2 border border-primary-container text-primary-container rounded font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">Create</button>
+          class="px-4 py-2 border border-primary-container text-primary-container rounded font-label-md text-label-md disabled:opacity-40">Create</button>
       </div>
-      <button onclick={() => refresh(openDomain.id)} disabled={busy !== null} class="px-3 py-2 border border-border-default rounded font-label-md text-label-md uppercase tracking-wider text-text-muted hover:text-primary">Refresh domain summary</button>
+      <button onclick={() => refresh(openDomain.id)} disabled={busy !== null} class="px-3 py-2 border border-border-default rounded font-label-md text-label-md text-text-muted hover:text-primary">Refresh domain summary</button>
     </div>
 
     {#if openDomain.indexes.length === 0}
@@ -168,7 +168,7 @@
             <p class="font-body-sm text-body-sm text-text-tertiary italic">No routing summary yet.</p>
           {/if}
           <div class="mt-auto flex items-center gap-2 pt-2">
-            <a href={link(`/?index=${i.id}`)} class="px-3 py-1.5 border border-border-default rounded font-label-md text-label-md uppercase tracking-wider text-text-muted hover:text-primary hover:border-primary/50 flex items-center gap-1">
+            <a href={link(`/?index=${i.id}`)} class="px-3 py-1.5 border border-border-default rounded font-label-md text-label-md text-text-muted hover:text-primary hover:border-primary/50 flex items-center gap-1">
               <span class="material-symbols-outlined text-[16px]">auto_awesome</span> View stars
             </a>
             <button onclick={() => refresh(i.id)} disabled={busy !== null} title="Regenerate routing summary" class="w-8 h-8 flex items-center justify-center rounded border border-border-default text-text-muted hover:text-primary disabled:opacity-40">

@@ -39,7 +39,7 @@
 
 <div>
   <div class="flex justify-between items-center mb-2">
-    <h4 class="font-label-md text-label-md text-text-muted uppercase tracking-widest">Anchors</h4>
+    <h4 class="font-label-md text-label-md text-text-muted">Anchors</h4>
     <button onclick={() => (open = !open)} class="material-symbols-outlined text-[18px] text-text-tertiary hover:text-on-surface" aria-label={open ? 'Close' : 'Add anchor'}>{open ? 'close' : 'add'}</button>
   </div>
   <div class="space-y-1.5">
@@ -72,7 +72,7 @@
           <input bind:value={winEnd} type="time" class="{field} flex-1" />
         </div>
       {/if}
-      <button onclick={add} class="w-full py-1.5 bg-surface text-rune-tome border border-rune-tome/50 rounded hover:bg-rune-tome/10 font-label-md text-label-md uppercase tracking-wider">Add anchor</button>
+      <button onclick={add} class="w-full py-1.5 bg-surface text-rune-tome border border-rune-tome/50 rounded hover:bg-rune-tome/10 font-label-md text-label-md">Add anchor</button>
     </div>
   {/if}
 </div>

@@ -132,8 +132,8 @@
   {#if overlay}
     <div class="absolute left-0 right-0 rounded bg-rune-chronicle/5 border-y border-rune-chronicle/20 pointer-events-none"
       style="top:{topPxOf(new Date(overlay.eating_start).getTime())}px; height:{Math.max(0, durMin({ start: overlay.eating_start, end: overlay.eating_end })) * PX_PER_MIN}px">
-      <span class="absolute top-1 right-2 font-label-md text-[9px] uppercase tracking-widest text-rune-chronicle/70 flex items-center gap-1">
-        <span class="material-symbols-outlined text-[12px]">restaurant</span>eating window
+      <span class="absolute top-1 right-2 font-label-md text-[9px] text-rune-chronicle/70 flex items-center gap-1">
+        <span class="material-symbols-outlined text-[12px]">restaurant</span>Eating window
       </span>
     </div>
   {/if}
@@ -170,8 +170,8 @@
     <div class="absolute left-2 right-2 z-10 pointer-events-none flex items-center gap-2 rounded-md border border-dashed border-rune-quest/50 bg-rune-quest/5 px-3"
       style="top:{gm * PX_PER_MIN}px; height:{Math.max(20, 30 * PX_PER_MIN)}px">
       <span class="material-symbols-outlined text-[15px] text-rune-quest">add</span>
-      <span class="font-label-md text-[10px] uppercase tracking-widest text-rune-quest">
-        double-click to add · {clock(new Date(lo + gm * 60000).toISOString())}
+      <span class="font-label-md text-[10px] text-rune-quest">
+        Double-click to add · {clock(new Date(lo + gm * 60000).toISOString())}
       </span>
     </div>
   {/if}

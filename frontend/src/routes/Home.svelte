@@ -266,19 +266,19 @@
   {#if graph && graph.nodes.length > 0}
     <div class="fixed left-4 top-[4.75rem] xl:top-4 z-40 flex items-center gap-1.5 rounded-full bg-bg-panel/85 backdrop-blur-md border border-border-default px-3 py-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.4)] font-label-md text-label-md">
       {#if level === 'galaxy'}
-        <span class="text-primary uppercase tracking-widest">Galaxy</span>
+        <span class="text-primary">Galaxy</span>
         <span class="text-text-tertiary">/</span>
-        <a href={link('/galaxy')} class="text-text-muted hover:text-primary uppercase tracking-widest">Manage</a>
+        <a href={link('/galaxy')} class="text-text-muted hover:text-primary">Manage</a>
         <span class="w-px h-3 bg-border-default mx-0.5"></span>
-        <button onclick={() => (showAll = true)} class="text-text-muted hover:text-primary uppercase tracking-widest">All nodes</button>
+        <button onclick={() => (showAll = true)} class="text-text-muted hover:text-primary">All nodes</button>
       {:else if level === 'domain'}
-        <a href={link('/')} class="text-text-muted hover:text-primary uppercase tracking-widest">Galaxy</a>
+        <a href={link('/')} class="text-text-muted hover:text-primary">Galaxy</a>
         <span class="text-text-tertiary">/</span>
         <span class="text-primary">{currentDomain?.title ?? 'Domain'}</span>
         <span class="w-px h-3 bg-border-default mx-0.5"></span>
-        <button onclick={() => (showAll = true)} class="text-text-muted hover:text-primary uppercase tracking-widest">All nodes</button>
+        <button onclick={() => (showAll = true)} class="text-text-muted hover:text-primary">All nodes</button>
       {:else if level === 'index'}
-        <a href={link('/')} class="text-text-muted hover:text-primary uppercase tracking-widest">Galaxy</a>
+        <a href={link('/')} class="text-text-muted hover:text-primary">Galaxy</a>
         {#if indexDomain}
           <span class="text-text-tertiary">/</span>
           <a href={link(`/?domain=${indexDomain.id}`)} class="text-text-muted hover:text-primary">{indexDomain.title}</a>
@@ -286,9 +286,9 @@
         <span class="text-text-tertiary">/</span>
         <span class="text-primary">{currentIndex?.title ?? 'Index'}</span>
       {:else}
-        <button onclick={() => (showAll = false)} class="text-text-muted hover:text-primary uppercase tracking-widest">Galaxy</button>
+        <button onclick={() => (showAll = false)} class="text-text-muted hover:text-primary">Galaxy</button>
         <span class="text-text-tertiary">/</span>
-        <span class="text-primary uppercase tracking-widest">All nodes</span>
+        <span class="text-primary">All nodes</span>
       {/if}
     </div>
   {/if}
@@ -298,7 +298,7 @@
     <div class="relative">
       {#if showFilter}
         <div transition:fly={{ y: 8, duration: dur(180) }} class="absolute bottom-full right-0 mb-2 w-56 bg-bg-panel border border-border-default rounded-lg p-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
-          <p class="font-label-md text-label-md text-text-muted uppercase tracking-widest mb-2">Show node types</p>
+          <p class="font-label-md text-label-md text-text-muted mb-2">Show node types</p>
           {#each ALL_TYPES as t (t)}
             {@const rune = RUNE[t]}
             {@const visible = !hidden.has(t)}
@@ -309,7 +309,7 @@
               <span class="font-body-sm text-body-sm text-on-surface">{rune.nav}</span>
             </button>
           {/each}
-          <p class="font-label-md text-label-md text-text-muted uppercase tracking-widest mt-3 mb-2">Emphasize</p>
+          <p class="font-label-md text-label-md text-text-muted mt-3 mb-2">Emphasize</p>
           <div class="flex gap-1.5">
             {#each ALL_TYPES as t (t)}
               {@const rune = RUNE[t]}

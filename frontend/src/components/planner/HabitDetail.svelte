@@ -120,7 +120,7 @@
       <div class="min-w-0">
         <div class="flex items-center gap-2 mb-1">
           <span class="material-symbols-outlined text-rune-quest text-[20px]">bolt</span>
-          <span class="font-label-md text-label-md text-rune-quest uppercase tracking-widest">
+          <span class="font-label-md text-label-md text-rune-quest">
             {habit.cadence_type === 'weekly' ? `Ritual · ${habit.weekly_target ?? 1}×/week` : 'Daily ritual'}
           </span>
         </div>
@@ -141,22 +141,22 @@
         <span class="material-symbols-outlined text-secondary text-[20px]" style="font-variation-settings:'FILL' 1">local_fire_department</span>
         <div>
           <p class="font-headline-sm text-headline-sm text-on-surface leading-none">{streak?.current ?? 0}</p>
-          <p class="font-label-md text-label-md text-text-tertiary uppercase tracking-wider mt-0.5">Current</p>
+          <p class="font-label-md text-label-md text-text-tertiary mt-0.5">Current</p>
         </div>
       </div>
       <div>
         <p class="font-headline-sm text-headline-sm text-on-surface leading-none">{streak?.best ?? 0}</p>
-        <p class="font-label-md text-label-md text-text-tertiary uppercase tracking-wider mt-0.5">Best</p>
+        <p class="font-label-md text-label-md text-text-tertiary mt-0.5">Best</p>
       </div>
       <div>
         <p class="font-headline-sm text-headline-sm text-on-surface leading-none">{total}</p>
-        <p class="font-label-md text-label-md text-text-tertiary uppercase tracking-wider mt-0.5">Total</p>
+        <p class="font-label-md text-label-md text-text-tertiary mt-0.5">Total</p>
       </div>
     </div>
 
     <!-- calendar -->
     <div class="px-6 py-5">
-      <p class="font-label-md text-label-md text-text-muted uppercase tracking-widest mb-3">Last {WEEKS} weeks · tap a day to log it</p>
+      <p class="font-label-md text-label-md text-text-muted mb-3">Last {WEEKS} weeks · tap a day to log it</p>
       <div class="overflow-x-auto pb-1">
         <div class="flex gap-[3px] min-w-max">
           <!-- weekday labels -->
@@ -199,11 +199,11 @@
     <!-- footer -->
     <div class="px-6 py-4 border-t border-border-subtle flex justify-between items-center">
       <button onclick={remove}
-        class="py-2 px-3 bg-transparent text-text-muted border border-border-default rounded hover:border-status-error hover:text-status-error transition-all font-label-md text-label-md uppercase tracking-wider flex items-center gap-1">
+        class="py-2 px-3 bg-transparent text-text-muted border border-border-default rounded hover:border-status-error hover:text-status-error transition-all font-label-md text-label-md flex items-center gap-1">
         <span class="material-symbols-outlined text-[16px]">delete</span> Delete ritual
       </button>
       <button onclick={onClose}
-        class="py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all font-label-md text-label-md uppercase tracking-wider">
+        class="py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all font-label-md text-label-md">
         Done
       </button>
     </div>

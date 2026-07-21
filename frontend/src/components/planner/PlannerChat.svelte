@@ -58,7 +58,7 @@
       <div transition:fly={{ y: 8, duration: dur(200), easing: quintOut }} class="mb-2 bg-bg-panel/90 backdrop-blur-xl border border-border-default rounded-lg px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
         <p class="font-body-sm text-body-sm {last.error ? 'text-status-error' : 'text-on-surface'}">{last.reply}</p>
         {#each okActions as a, i (i)}
-          <p class="font-label-md text-label-md text-rune-quest uppercase tracking-wider mt-1.5 flex items-center gap-1">
+          <p class="font-label-md text-label-md text-rune-quest mt-1.5 flex items-center gap-1">
             <span class="material-symbols-outlined text-[14px]">check_small</span>
             {a.tool.replace(/_/g, ' ')}
           </p>

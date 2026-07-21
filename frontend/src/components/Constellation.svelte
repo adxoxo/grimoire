@@ -9,16 +9,43 @@
     y: number
     fx?: number | null
     fy?: number | null
+    z: number // stable depth factor in [0.80, 1.15]; scales drawn radius + stroke/label alpha
+    pulsePhase: number // stable per-node phase for the unreviewed stroke oscillation
   }
   interface SimLink {
     source: SimNode
     target: SimNode
     rel: string
     inferred: boolean
+    phase: number // stable per-edge pulse phase in [0, 1)
+    duration: number // pulse travel time in ms (4-8s)
   }
 
   const RADIUS: Record<NodeType, number> = { project: 30, memory: 20, document: 19, entity: 17 }
   const TAU = Math.PI * 2
+  const PULSE_LEN = 0.035 // traveling highlight covers ~3.5% of the bezier
+
+  // Cheap stable 32-bit hash (FNV-1a). Depth, pulse phase, and pulse duration all
+  // derive from ids through this, so they never change across frames or reloads.
+  function hash32(s: string): number {
+    let h = 2166136261
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i)
+      h = Math.imul(h, 16777619)
+    }
+    return h >>> 0
+  }
+
+  // Depth factor: scope rows sit at fixed senior depths (domains nearest), content
+  // scatters across [0.80, 1.15] by id hash for a stable 2.5D read.
+  const zOf = (n: GraphNode): number =>
+    n.node_kind === 'domain' ? 1.08 : n.node_kind === 'index' ? 1.0 : 0.8 + ((hash32(n.id) % 1000) / 1000) * 0.35
+
+  // Cubic bezier coordinate at t (used for the edge pulse segment).
+  const cubicAt = (a: number, c1: number, c2: number, b: number, t: number): number => {
+    const u = 1 - t
+    return u * u * u * a + 3 * u * u * t * c1 + 3 * u * t * t * c2 + t * t * t * b
+  }
 
   // Node radius: scope rows (domain/index spine of the galaxy and domain views) render
   // larger than content stars; content keeps the per-type radius, with RADIUS the fallback.
@@ -42,19 +69,27 @@
   // the spine with anchorIds (the galaxy pins domains, a domain view pins its indexes).
   const isAnchor = (n: GraphNode) => (anchorIds ? anchorIds.has(n.id) : n.type === 'project')
 
-  // Edge stiffness by relationship: tight and strong for ownership so leaves hug their
-  // quest line; loose and weak for cross-references so they do not collapse clusters.
+  // Edge stiffness by relationship: firm for ownership so leaves fan out around their
+  // parent at a calm distance; loose and weak for cross-references so they do not
+  // collapse clusters. Membership into a domain rides longer than into an index.
   const EDGE_STIFFNESS: Record<string, { distance: number; strength: number }> = {
-    belongs_to: { distance: 46, strength: 0.9 },
-    mentions: { distance: 85, strength: 0.5 },
-    derived_from: { distance: 85, strength: 0.5 },
+    belongs_to: { distance: 70, strength: 0.9 },
+    mentions: { distance: 90, strength: 0.5 },
+    derived_from: { distance: 90, strength: 0.5 },
     references: { distance: 160, strength: 0.1 },
   }
   const DEFAULT_STIFFNESS = { distance: 95, strength: 0.4 }
+  const DOMAIN_LINK_DISTANCE = 110 // index -> domain membership rides the longest leash
+
+  const linkDistance = (l: SimLink): number =>
+    l.rel === 'belongs_to' && (l.target.node_kind === 'domain' || l.source.node_kind === 'index')
+      ? DOMAIN_LINK_DISTANCE
+      : (EDGE_STIFFNESS[l.rel] ?? DEFAULT_STIFFNESS).distance
 
   // Tick budgets: a first-ever layout settles long; adding nodes to a saved layout only
-  // re-settles the newcomers (everything saved is pinned during the pass).
-  const FULL_TICKS = 300
+  // re-settles the newcomers (everything saved is pinned during the pass). 380 because
+  // the looser spacing forces need more iterations to stop drifting.
+  const FULL_TICKS = 380
   const INCREMENTAL_TICKS = 80
 
   let {
@@ -97,8 +132,10 @@
   let canvas = $state<HTMLCanvasElement>()
 
   // Everything below is deliberately NON-reactive. Canvas draws imperatively; Svelte
-  // never touches the render path, so hundreds of nodes stay cheap and an idle graph
-  // costs zero repaints (the render loop is event-driven, not a permanent rAF).
+  // never touches the render path, so hundreds of nodes stay cheap. Rendering has one
+  // driver: while edge pulses animate (motion allowed, tab visible, edges present) a
+  // persistent rAF loop repaints; otherwise redraws stay event-driven exactly as before
+  // (and reduced-motion never leaves the event-driven path).
   let ctx: CanvasRenderingContext2D | null = null
   let nodes: SimNode[] = []
   let links: SimLink[] = []
@@ -131,30 +168,77 @@
     return from + (target - from) * t
   }
 
-  // Precomputed soft-glow sprites, one per colour, drawn additively and built lazily
-  // (rune colours in focus view, community colours in the global view). Building the
-  // gradient once (not per node per frame) is what keeps the glow cheap.
-  const halos = new Map<string, HTMLCanvasElement>()
+  // Starfield atmosphere: ~120 tiny dots behind the graph, seeded deterministically
+  // from the canvas size (same size = same sky), split across three parallax bands so
+  // panning drifts them slower than the nodes. Rebuilt only when the size changes.
+  interface Star {
+    x: number
+    y: number
+    size: number
+    alpha: number
+    factor: number
+  }
+  const STAR_COUNT = 120
+  const STAR_LAYERS = [0.15, 0.3, 0.45]
+  let stars: Star[] = []
+  let starW = 0
+  let starH = 0
 
-  function rgba(hex: string, a: number): string {
-    const n = parseInt(hex.slice(1), 16)
-    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
+  function mulberry32(seed: number): () => number {
+    let a = seed >>> 0
+    return () => {
+      a = (a + 0x6d2b79f5) | 0
+      let t = Math.imul(a ^ (a >>> 15), 1 | a)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
   }
 
-  function haloFor(color: string): HTMLCanvasElement {
-    let sprite = halos.get(color)
-    if (!sprite) {
-      sprite = document.createElement('canvas')
-      sprite.width = sprite.height = 64
-      const g = sprite.getContext('2d')!
-      const grad = g.createRadialGradient(32, 32, 4, 32, 32, 32)
-      grad.addColorStop(0, rgba(color, 0.55))
-      grad.addColorStop(1, rgba(color, 0))
-      g.fillStyle = grad
-      g.fillRect(0, 0, 64, 64)
-      halos.set(color, sprite)
+  function buildStars() {
+    if (starW === cssW && starH === cssH) return
+    starW = cssW
+    starH = cssH
+    const rand = mulberry32((Math.round(cssW) * 73856093) ^ (Math.round(cssH) * 19349663))
+    stars = []
+    for (let i = 0; i < STAR_COUNT; i++) {
+      stars.push({
+        x: rand() * cssW,
+        y: rand() * cssH,
+        size: rand() < 0.12 ? 1.3 : 0.7,
+        alpha: 0.05 + rand() * 0.2,
+        factor: STAR_LAYERS[i % STAR_LAYERS.length],
+      })
     }
-    return sprite
+  }
+
+  // Pulse loop: the single continuous driver. It runs ONLY while pulses can animate
+  // (motion allowed, tab visible, something to pulse); otherwise rendering stays
+  // event-driven through scheduleDraw. Never started under reduced motion.
+  let pulseRunning = false
+  let pulseRaf = 0
+
+  function pulseLoop() {
+    if (!pulseRunning) return
+    draw()
+    pulseRaf = requestAnimationFrame(pulseLoop)
+  }
+
+  function stopPulseLoop() {
+    pulseRunning = false
+    cancelAnimationFrame(pulseRaf)
+  }
+
+  function syncPulseLoop() {
+    const wants =
+      !reducedMotion &&
+      !document.hidden &&
+      (links.length > 0 || nodes.some((n) => n.status === 'unreviewed'))
+    if (wants && !pulseRunning) {
+      pulseRunning = true
+      pulseRaf = requestAnimationFrame(pulseLoop)
+    } else if (!wants && pulseRunning) {
+      stopPulseLoop()
+    }
   }
 
   const nodeColor = (n: SimNode) =>
@@ -164,10 +248,12 @@
         ? communityColor(n.community_id)
         : RUNE[n.type].color
 
+  let drawRaf = 0
   function scheduleDraw() {
+    if (pulseRunning) return // the persistent loop already repaints every frame
     if (rafPending) return
     rafPending = true
-    requestAnimationFrame(draw)
+    drawRaf = requestAnimationFrame(draw)
   }
 
   function toGraph(clientX: number, clientY: number) {
@@ -184,7 +270,7 @@
       if (focusSet && !focusSet.has(n.id)) continue // faded out = not clickable
       const dx = p.x - n.x
       const dy = p.y - n.y
-      const r = radiusOf(n)
+      const r = radiusOf(n) * n.z // hit area matches the depth-scaled drawn radius
       if (dx * dx + dy * dy <= r * r) return n
     }
     return null
@@ -193,9 +279,53 @@
   function draw() {
     rafPending = false
     if (!ctx) return
+    const nowT = performance.now()
+    const fading = nowT - fadeStart < FADE_MS
+
+    // Camera glide: tweened here inside the single draw driver instead of running a
+    // second competing rAF chain.
+    if (glide) {
+      const p = GLIDE_MS === 0 ? 1 : Math.min(1, (nowT - glide.t0) / GLIDE_MS)
+      const e = 1 - Math.pow(1 - p, 3) // ease-out cubic
+      cam.x = glide.sx + (glide.tx - glide.sx) * e
+      cam.y = glide.sy + (glide.ty - glide.sy) * e
+      cam.k = glide.sk + (glide.tk - glide.sk) * e
+      if (p >= 1) glide = null
+    }
+
     const dpr = window.devicePixelRatio || 1
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, cssW, cssH)
+
+    // Atmosphere, screen space, deepest first: a faint mid-depth grid, then three
+    // parallax star bands. Both track a fraction of the camera translation (wrapped)
+    // so the graph reads as the nearest layer of a deep scene, not marks on a board.
+    const GRID = 66
+    const gx = (((cam.x * 0.5) % GRID) + GRID) % GRID
+    const gy = (((cam.y * 0.5) % GRID) + GRID) % GRID
+    ctx.strokeStyle = 'rgba(41,38,63,0.35)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    for (let x = gx; x <= cssW; x += GRID) {
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, cssH)
+    }
+    for (let y = gy; y <= cssH; y += GRID) {
+      ctx.moveTo(0, y)
+      ctx.lineTo(cssW, y)
+    }
+    ctx.stroke()
+
+    buildStars()
+    ctx.fillStyle = '#cfc8e8'
+    for (const s of stars) {
+      const sx = (((s.x + cam.x * s.factor) % cssW) + cssW) % cssW
+      const sy = (((s.y + cam.y * s.factor) % cssH) + cssH) % cssH
+      ctx.globalAlpha = s.alpha
+      ctx.fillRect(sx, sy, s.size, s.size)
+    }
+    ctx.globalAlpha = 1
+
     ctx.translate(cam.x, cam.y)
     ctx.scale(cam.k, cam.k)
 
@@ -203,29 +333,55 @@
     const vis = (n: SimNode) => !hiddenTypes?.has(n.type)
     const matched = (n: SimNode) =>
       vis(n) && (!highlightType || n.type === highlightType) && (!q || n.title.toLowerCase().includes(q))
-    const nowT = performance.now()
-    const fading = nowT - fadeStart < FADE_MS
 
-    // edges — same-community edges take the community colour in the global view, so
-    // clusters read as coherent threads
-    ctx.lineWidth = 1.2
+    // Edges, pass 1 (static): horizontal-tangent cubic beziers in the schematic border
+    // colour, quiet by design. Provenance keeps its read: inferred edges stay dashed
+    // and lighter than explicit ones.
+    ctx.lineWidth = 1
+    ctx.strokeStyle = '#29263f'
     for (const l of links) {
       const s = l.source
       const t = l.target
       if (!s || !t || !vis(s) || !vis(t)) continue
       const focus = Math.min(focusFactor(s.id, nowT), focusFactor(t.id, nowT))
-      // Provenance: inferred edges render dashed and lighter than explicit ones.
-      ctx.globalAlpha = (matched(s) && matched(t) ? 0.3 : 0.07) * focus * (l.inferred ? 0.6 : 1)
+      ctx.globalAlpha = (matched(s) && matched(t) ? 0.7 : 0.18) * focus * (l.inferred ? 0.6 : 1)
       ctx.setLineDash(l.inferred ? [4, 4] : [])
-      const sameCommunity =
-        colorByCommunity && s.community_id != null && s.community_id === t.community_id
-      ctx.strokeStyle = sameCommunity ? communityColor(s.community_id!) : linkColor(s, t)
+      const mx = (s.x + t.x) / 2
       ctx.beginPath()
       ctx.moveTo(s.x, s.y)
-      ctx.lineTo(t.x, t.y)
+      ctx.bezierCurveTo(mx, s.y, mx, t.y, t.x, t.y)
       ctx.stroke()
     }
     ctx.setLineDash([])
+
+    // Edges, pass 2 (pulse): a short traveling highlight along the bezier, carrying
+    // the edge's own colour (community colour for same-community edges in the global
+    // view, so clusters still read as coherent threads). Skipped under reduced motion;
+    // the loop that would animate it never starts there.
+    if (!reducedMotion) {
+      ctx.lineCap = 'round'
+      ctx.lineWidth = 1.4
+      for (const l of links) {
+        const s = l.source
+        const t = l.target
+        if (!s || !t || !vis(s) || !vis(t)) continue
+        const focus = Math.min(focusFactor(s.id, nowT), focusFactor(t.id, nowT))
+        const a = 0.85 * focus * (matched(s) && matched(t) ? 1 : 0.15) * (l.inferred ? 0.6 : 1)
+        if (a < 0.02) continue
+        const t0 = ((nowT / l.duration + l.phase) % 1) * (1 - PULSE_LEN)
+        const t1 = t0 + PULSE_LEN
+        const mx = (s.x + t.x) / 2
+        const sameCommunity =
+          colorByCommunity && s.community_id != null && s.community_id === t.community_id
+        ctx.strokeStyle = sameCommunity ? communityColor(s.community_id!) : linkColor(s, t)
+        ctx.globalAlpha = a
+        ctx.beginPath()
+        ctx.moveTo(cubicAt(s.x, mx, mx, t.x, t0), cubicAt(s.y, s.y, t.y, t.y, t0))
+        ctx.lineTo(cubicAt(s.x, mx, mx, t.x, t1), cubicAt(s.y, s.y, t.y, t.y, t1))
+        ctx.stroke()
+      }
+      ctx.lineCap = 'butt'
+    }
     ctx.globalAlpha = 1
 
     // community labels at cluster centroids (global view only), behind the nodes
@@ -241,7 +397,7 @@
       }
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.font = '600 15px "Spectral", sans-serif'
+      ctx.font = '600 15px "Spectral", serif'
       for (const [cid, a] of acc) {
         if (a.count < 3) continue // singleton clusters would just be noise
         const label = communityLabels[String(cid)]?.label
@@ -253,67 +409,97 @@
       ctx.globalAlpha = 1
     }
 
-    // additive glow pass
-    ctx.globalCompositeOperation = 'lighter'
-    for (const n of nodes) {
-      if (!vis(n) || !matched(n)) continue
-      const r = radiusOf(n)
-      const hot = n.id === selectedId || n.id === hoverId
-      const size = r * (hot ? 4.4 : 3.4)
-      ctx.globalAlpha = (hot ? 0.9 : 0.5) * focusFactor(n.id, nowT)
-      const sprite = haloFor(nodeColor(n))
-      ctx.drawImage(sprite, n.x - size / 2, n.y - size / 2, size, size)
-    }
-    ctx.globalCompositeOperation = 'source-over'
-    ctx.globalAlpha = 1
-
-    // nodes
+    // Nodes: flat fills with depth-faded strokes, no glow pass. Depth (z) scales the
+    // drawn radius and fades the stroke; hover/selection go to full alpha, no scaling.
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
+    // Small index views (<= 30 nodes at full focus) label everything; dense views
+    // label only scope rows and the hot node.
+    const fullCount = focusSet ? focusSet.size : nodes.reduce((c, n) => (vis(n) ? c + 1 : c), 0)
+    const smallView = fullCount <= 30
     for (const n of nodes) {
       if (!vis(n)) continue
-      const r = radiusOf(n)
+      const r = radiusOf(n) * n.z
       const sel = n.id === selectedId
+      const hot = sel || n.id === hoverId
       const dim = !matched(n)
       const color = nodeColor(n)
       const focus = focusFactor(n.id, nowT)
-      ctx.globalAlpha = (dim ? 0.18 : 1) * focus
+      const dimF = (dim ? 0.18 : 1) * focus
+      const isDomain = n.node_kind === 'domain'
+      const isIndex = n.node_kind === 'index'
 
       ctx.beginPath()
       ctx.arc(n.x, n.y, r, 0, TAU)
-      ctx.fillStyle = '#0e0d16'
+      ctx.fillStyle = '#16142b'
+      ctx.globalAlpha = dimF
       ctx.fill()
-      ctx.lineWidth = sel ? 3 : n.id === hoverId ? 2.4 : 1.6
+      ctx.lineWidth = isDomain ? 1.6 : 1.1
       ctx.strokeStyle = color
+      ctx.globalAlpha = (hot ? 1 : 0.45 + 0.4 * n.z) * dimF
       ctx.stroke()
 
-      // unreviewed = dashed outer ring (status as a static mark, no animation, so idle
-      // stays repaint-free — the smoothness trade the SVG pulse could not make).
-      if (n.status === 'unreviewed') {
-        ctx.save()
-        ctx.setLineDash([3, 3])
+      // Domain anchor mark: a second concentric ring, quiet until hot.
+      if (isDomain) {
         ctx.lineWidth = 1
-        ctx.globalAlpha = (dim ? 0.18 : 0.7) * focus
+        ctx.globalAlpha = (hot ? 0.8 : 0.3) * dimF
         ctx.beginPath()
         ctx.arc(n.x, n.y, r + 4, 0, TAU)
         ctx.stroke()
-        ctx.restore()
+      }
+
+      // Selection: full-alpha stroke above plus one restrained outer ring, no glow.
+      if (sel) {
+        ctx.lineWidth = 1
+        ctx.globalAlpha = 0.5 * dimF
+        ctx.beginPath()
+        ctx.arc(n.x, n.y, r + 3, 0, TAU)
+        ctx.stroke()
+      }
+
+      // Unreviewed = dashed outer ring whose stroke alpha oscillates 0.35..0.75 over
+      // ~3s (per-node phase). Reduced motion holds it steady at the midpoint; the dash
+      // pattern keeps the status legible without any animation.
+      if (n.status === 'unreviewed') {
+        const pulse = reducedMotion ? 0.55 : 0.55 + 0.2 * Math.sin(TAU * (nowT / 3000 + n.pulsePhase))
+        ctx.setLineDash([3, 3])
+        ctx.lineWidth = 1
+        ctx.globalAlpha = pulse * dimF
+        ctx.beginPath()
+        ctx.arc(n.x, n.y, r + (isDomain ? 7 : 4), 0, TAU)
+        ctx.stroke()
+        ctx.setLineDash([])
       }
 
       if (fontReady) {
+        ctx.globalAlpha = dimF
         ctx.fillStyle = color
         ctx.font = `${Math.round(r * 0.9)}px "Material Symbols Outlined"`
         ctx.fillText(iconOf(n), n.x, n.y + 1)
       }
 
-      // Declutter: only the spine (projects and scope rows), the selected/hovered node,
-      // and a zoomed-in view show labels. The hovered/selected label gets a dark backdrop
-      // so it stays legible over edges and neighbours.
-      const hot = sel || n.id === hoverId
-      if (hot || n.type === 'project' || n.node_kind === 'domain' || n.node_kind === 'index' || cam.k >= 1.1) {
+      // Labels: scope rows always speak (domains in the display serif, indexes in
+      // Spectral); content speaks when hot or when the view is small enough to stay
+      // calm. The hot label keeps its dark backdrop for legibility over edges.
+      const inFull = !focusSet || focusSet.has(n.id)
+      if (isDomain || isIndex || hot || (smallView && inFull)) {
         const label = n.title.length > 22 ? n.title.slice(0, 21) + '…' : n.title
-        ctx.font = '11px "Spectral", sans-serif'
-        const ly = n.y + r + 12
+        let size = 11
+        if (isDomain) {
+          size = 13
+          ctx.font = '600 13px "Cormorant Garamond", Georgia, serif'
+          ctx.fillStyle = '#e3d3a0'
+          ctx.globalAlpha = 0.95 * dimF
+        } else if (isIndex) {
+          ctx.font = '11px "Spectral", serif'
+          ctx.fillStyle = '#9b96b8'
+          ctx.globalAlpha = 0.8 * dimF
+        } else {
+          ctx.font = '11px "Spectral", serif'
+          ctx.fillStyle = hot ? '#e5e0ee' : '#9b96b8'
+          ctx.globalAlpha = (hot ? 1 : 0.45 + 0.4 * n.z) * dimF
+        }
+        const ly = n.y + r + size + 3
         if (hot) {
           const tw = ctx.measureText(label).width
           ctx.globalAlpha = focus
@@ -322,14 +508,14 @@
           ctx.roundRect(n.x - tw / 2 - 5, ly - 9, tw + 10, 17, 3)
           ctx.fill()
           ctx.fillStyle = '#e5e0ee'
-        } else {
-          ctx.fillStyle = '#cdc6b7'
         }
         ctx.fillText(label, n.x, ly)
       }
     }
     ctx.globalAlpha = 1
-    if (fading) scheduleDraw() // keep the focus tween moving until it lands
+    // Keep tweens moving when the pulse loop is off (reduced motion or no pulses);
+    // scheduleDraw no-ops while the loop is the driver.
+    if (fading || glide) scheduleDraw()
   }
 
   // ---- interaction --------------------------------------------------------------
@@ -435,12 +621,12 @@
         .join(','),
   )
 
-  // Mount: context, halos, fonts, sizing.
+  // Mount: context, fonts, sizing, visibility.
   $effect(() => {
     if (!canvas) return
     ctx = canvas.getContext('2d')
 
-    // Resize only re-rasterizes and redraws — the layout is frozen, so nothing reflows.
+    // Resize only re-rasterizes and redraws; the layout is frozen, so nothing reflows.
     const ro = new ResizeObserver(() => {
       const r = canvas!.getBoundingClientRect()
       cssW = r.width
@@ -457,7 +643,21 @@
       scheduleDraw()
     })
 
-    return () => ro.disconnect()
+    // Pause the pulse loop while the tab is hidden; resume (and repaint) on return.
+    const onVisibility = () => {
+      syncPulseLoop()
+      if (!document.hidden) scheduleDraw()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      ro.disconnect()
+      document.removeEventListener('visibilitychange', onVisibility)
+      stopPulseLoop()
+      cancelAnimationFrame(drawRaf)
+      rafPending = false
+      glide = null
+    }
   })
 
   // Lay the graph out when its content changes: anchors pinned at saved (or
@@ -477,7 +677,7 @@
     }
 
     // Effective saved positions: this session's fresh placements win over the server's,
-    // UNLESS the server now has an entry and the cached one was never a drag (pinned) —
+    // UNLESS the server now has an entry and the cached one was never a drag (pinned):
     // in that case the save round-tripped, so the server value wins and the now-stale
     // cache entry is dropped instead of permanently shadowing the server.
     const saved = new Map<string, { x: number; y: number; pinned: boolean }>()
@@ -491,19 +691,30 @@
       saved.set(id, p)
     }
 
-    nodes = g.nodes.map((n) => ({ ...n, x: 0, y: 0 })) as SimNode[]
+    nodes = g.nodes.map((n) => ({
+      ...n,
+      x: 0,
+      y: 0,
+      z: zOf(n),
+      pulsePhase: (hash32(n.id) % 997) / 997,
+    })) as SimNode[]
     const byId = new Map(nodes.map((n) => [n.id, n]))
     // Resolve endpoints to node objects HERE, never via forceLink: on a fully-restored
     // load the simulation does not run, and string endpoints would crash the draw loop
     // (RUNE[undefined]) leaving the canvas blank.
     links = g.edges
       .filter((e) => byId.has(e.src) && byId.has(e.dst))
-      .map((e) => ({
-        source: byId.get(e.src)!,
-        target: byId.get(e.dst)!,
-        rel: e.rel,
-        inferred: e.provenance != null && e.provenance !== 'explicit',
-      }))
+      .map((e) => {
+        const h = hash32(e.src + '>' + e.dst)
+        return {
+          source: byId.get(e.src)!,
+          target: byId.get(e.dst)!,
+          rel: e.rel,
+          inferred: e.provenance != null && e.provenance !== 'explicit',
+          phase: (h % 1024) / 1024,
+          duration: 4000 + ((h >>> 10) % 4000), // 4-8s, stable per edge
+        }
+      })
 
     const cx = cssW / 2
     const cy = cssH / 2
@@ -558,11 +769,13 @@
           'link',
           forceLink<SimNode, SimLink>(links)
             .id((d: any) => d.id)
-            .distance((l) => (EDGE_STIFFNESS[l.rel] ?? DEFAULT_STIFFNESS).distance)
+            .distance(linkDistance)
             .strength((l) => (EDGE_STIFFNESS[l.rel] ?? DEFAULT_STIFFNESS).strength),
         )
         .force('charge', forceManyBody<SimNode>().strength(-320))
-        .force('collide', forceCollide<SimNode>((d) => radiusOf(d) + 14))
+        // Collide on the depth-scaled drawn radius plus generous breathing room,
+        // the "too tight" fix.
+        .force('collide', forceCollide<SimNode>((d) => radiusOf(d) * d.z + 26))
         // Weak pull toward the ring centre so unbounded charge repulsion cannot
         // explode the leaves off-viewport (it only acts during this bounded settle;
         // the layout freezes right after).
@@ -596,6 +809,8 @@
       }
     }
 
+    // Content changed: start or stop the pulse driver to match the new edge set.
+    syncPulseLoop()
     scheduleDraw()
   })
 
@@ -604,7 +819,9 @@
   // single-node glide at fixed zoom cannot frame an arbitrary layout; fitting the
   // bounding box always lands the user on the content. Positions never change on
   // focus (the layout is frozen); only alphas and the viewport move.
-  let glideRaf = 0
+  // Glide state consumed by draw(): the camera tween runs inside the one draw driver
+  // (pulse loop when active, self-chained scheduleDraw otherwise), no separate rAF.
+  let glide: { sx: number; sy: number; sk: number; tx: number; ty: number; tk: number; t0: number } | null = null
   let lastFitSig: string | null = null
 
   function fitTo(ids: Set<string> | null) {
@@ -627,19 +844,17 @@
     const my = (minY + maxY) / 2
     const tx = cssW / 2 - tk * mx
     const ty = cssH / 2 - tk * my
-    const sx = cam.x, sy = cam.y, sk = cam.k
-    const t0 = performance.now()
-    cancelAnimationFrame(glideRaf)
-    const step = (t: number) => {
-      const p = GLIDE_MS === 0 ? 1 : Math.min(1, (t - t0) / GLIDE_MS)
-      const e = 1 - Math.pow(1 - p, 3) // ease-out cubic
-      cam.x = sx + (tx - sx) * e
-      cam.y = sy + (ty - sy) * e
-      cam.k = sk + (tk - sk) * e
+    if (GLIDE_MS === 0) {
+      // Reduced motion: land instantly, no tween.
+      glide = null
+      cam.x = tx
+      cam.y = ty
+      cam.k = tk
       scheduleDraw()
-      if (p < 1) glideRaf = requestAnimationFrame(step)
+      return
     }
-    glideRaf = requestAnimationFrame(step)
+    glide = { sx: cam.x, sy: cam.y, sk: cam.k, tx, ty, tk, t0: performance.now() }
+    scheduleDraw()
   }
 
   $effect(() => {
@@ -662,7 +877,7 @@
     scheduleDraw()
   })
 
-  // Restyle (selection / highlight / filter / colour mode) is just a redraw — no relayout.
+  // Restyle (selection / highlight / filter / colour mode) is just a redraw, no relayout.
   $effect(() => {
     selectedId
     highlightType

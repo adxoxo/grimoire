@@ -10,7 +10,7 @@
 <div class="min-h-screen flex flex-col items-center justify-center text-center px-6">
   <span class="material-symbols-outlined text-[40px] text-border-default mb-3">architecture</span>
   {#if eyebrow}
-    <p class="font-label-md text-label-md text-text-tertiary uppercase tracking-widest mb-1">{eyebrow}</p>
+    <p class="font-label-md text-label-md text-text-tertiary mb-1">{eyebrow}</p>
   {/if}
   <h1 class="font-headline-lg text-headline-lg text-primary">{title}</h1>
   <p class="font-body-md text-body-md text-text-muted mt-3 max-w-sm">

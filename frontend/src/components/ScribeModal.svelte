@@ -79,7 +79,7 @@
       <div class="px-6 py-5 space-y-5">
         <!-- type selector -->
         <div>
-          <span class="font-label-md text-label-md text-text-muted uppercase tracking-widest">Node type</span>
+          <span class="font-label-md text-label-md text-text-muted">Node type</span>
           <div class="mt-2 grid grid-cols-3 gap-2">
             {#each TYPES as t (t.value)}
               {@const rune = RUNE[t.value]}
@@ -99,7 +99,7 @@
 
         <!-- title -->
         <div>
-          <label class="font-label-md text-label-md text-text-muted uppercase tracking-widest" for="scribe-title">Title</label>
+          <label class="font-label-md text-label-md text-text-muted" for="scribe-title">Title</label>
           <!-- svelte-ignore a11y_autofocus -->
           <input
             id="scribe-title"
@@ -112,7 +112,7 @@
 
         <!-- context -->
         <div>
-          <label class="font-label-md text-label-md text-text-muted uppercase tracking-widest" for="scribe-context">
+          <label class="font-label-md text-label-md text-text-muted" for="scribe-context">
             {type === 'project' ? 'Context summary' : 'Notes (optional)'}
           </label>
           <textarea
@@ -127,7 +127,7 @@
         <!-- link to quest line (rune/tome only) -->
         {#if type !== 'project'}
           <div>
-            <label class="font-label-md text-label-md text-text-muted uppercase tracking-widest" for="scribe-project">Link to quest line (optional)</label>
+            <label class="font-label-md text-label-md text-text-muted" for="scribe-project">Link to quest line (optional)</label>
             <input
               id="scribe-project"
               bind:value={project}
@@ -143,13 +143,13 @@
       </div>
 
       <div class="px-6 py-4 border-t border-border-subtle flex justify-end gap-3">
-        <button type="button" onclick={close} class="py-2 px-4 font-label-md text-label-md text-text-muted hover:text-on-surface uppercase tracking-wider">
+        <button type="button" onclick={close} class="py-2 px-4 font-label-md text-label-md text-text-muted hover:text-on-surface">
           Cancel
         </button>
         <button
           type="submit"
           disabled={busy || !title.trim()}
-          class="py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-40"
+          class="py-2 px-4 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md disabled:opacity-40"
         >
           {busy ? 'Inscribing...' : 'Inscribe'}
         </button>

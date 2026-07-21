@@ -58,14 +58,14 @@
 </script>
 
 <div class="min-h-screen overflow-y-auto px-margin py-lg max-w-3xl mx-auto">
-  <a href={link('/')} class="font-label-md text-label-md text-text-muted hover:text-primary uppercase tracking-widest inline-flex items-center gap-1">
+  <a href={link('/')} class="font-label-md text-label-md text-text-muted hover:text-primary inline-flex items-center gap-1">
     <span class="material-symbols-outlined text-[16px]">arrow_back</span> Constellation
   </a>
 
   <header class="mt-6 mb-lg flex items-center gap-3 border-b border-border-subtle pb-6">
     <span class="material-symbols-outlined text-primary-container text-[32px]" style="filter:drop-shadow(0 0 8px #d4a93f)">fort</span>
     <div>
-      <span class="font-label-md text-label-md text-primary-container uppercase tracking-widest">Review sanctum</span>
+      <span class="font-label-md text-label-md text-primary-container">Review sanctum</span>
       <h1 class="font-headline-lg text-headline-lg text-primary leading-none">Unreviewed</h1>
     </div>
   </header>
@@ -91,7 +91,7 @@
         <div class="min-w-0">
           <div class="flex items-center gap-2 mb-1">
             <span class="w-2 h-2 rounded-full svg-pulse" style="background-color:{rune.color}; box-shadow:0 0 8px {rune.color}"></span>
-            <span class="font-label-md text-label-md uppercase tracking-wider" style="color:{rune.color}">{rune.label}</span>
+            <span class="font-label-md text-label-md" style="color:{rune.color}">{rune.label}</span>
           </div>
           <p class="font-body-md text-body-md text-on-surface truncate">{item.title}</p>
           {#if item.context_summary}
@@ -104,7 +104,7 @@
               onclick={() => pruneLinks(item.id)}
               disabled={busy === item.id}
               title="Prune this node's links"
-              class="py-1.5 px-3 border border-border-default rounded text-text-muted hover:text-status-error hover:border-status-error transition-all duration-200 font-label-md text-label-md uppercase tracking-wider flex items-center gap-1 disabled:opacity-50"
+              class="py-1.5 px-3 border border-border-default rounded text-text-muted hover:text-status-error hover:border-status-error transition-all duration-200 font-label-md text-label-md flex items-center gap-1 disabled:opacity-50"
             >
               <span class="material-symbols-outlined text-[16px]">content_cut</span> Prune
             </button>
@@ -112,7 +112,7 @@
           <button
             onclick={() => sanction(item.id)}
             disabled={busy === item.id}
-            class="py-1.5 px-3 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md uppercase tracking-wider disabled:opacity-50"
+            class="py-1.5 px-3 bg-surface text-primary-container border border-primary-container rounded hover:bg-bg-surface hover:shadow-[0_0_15px_0px_rgba(212,169,63,0.3)] transition-all duration-300 font-label-md text-label-md disabled:opacity-50"
           >
             {busy === item.id ? '...' : 'Sanction'}
           </button>

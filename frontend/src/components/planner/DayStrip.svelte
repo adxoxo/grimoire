@@ -34,7 +34,7 @@
           ? 'border-rune-quest/25 hover:bg-bg-surface'
           : 'border-transparent hover:bg-bg-surface'}"
     >
-      <span class="font-label-md text-[10px] uppercase tracking-wider {selected ? 'text-rune-quest' : 'text-text-tertiary'}">
+      <span class="font-label-md text-[10px] {selected ? 'text-rune-quest' : 'text-text-tertiary'}">
         {dt.toLocaleDateString(undefined, { weekday: 'short' })}
       </span>
       <span class="font-headline-sm text-headline-sm leading-none {selected ? 'text-primary' : 'text-text-muted'}">{dt.getDate()}</span>

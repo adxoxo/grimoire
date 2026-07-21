@@ -215,7 +215,7 @@
     <!-- day setup bar -->
     <div class="grimoire-card rounded-xl p-4 flex flex-wrap items-center gap-4 md:gap-6 mb-lg">
       <div>
-        <label class="font-label-md text-label-md text-text-muted uppercase tracking-widest block mb-1" for="wake">Woke at</label>
+        <label class="font-label-md text-label-md text-text-muted block mb-1" for="wake">Woke at</label>
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined text-rune-quest text-[18px]">wb_twilight</span>
           <input id="wake" type="time" bind:value={wake} class="bg-surface-container-low border border-border-default rounded px-2 py-1.5 text-on-surface font-body-md text-body-md focus:outline-none focus:border-rune-quest/60" />
@@ -223,17 +223,17 @@
       </div>
       <div class="font-label-md text-label-md text-text-tertiary self-end pb-2">window {windowLabel}</div>
       <div>
-        <label class="font-label-md text-label-md text-text-muted uppercase tracking-widest block mb-1" for="sleep">Sleeping around</label>
+        <label class="font-label-md text-label-md text-text-muted block mb-1" for="sleep">Sleeping around</label>
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined text-rune-entity text-[18px]">bedtime</span>
           <input id="sleep" type="time" bind:value={sleep} class="bg-surface-container-low border border-border-default rounded px-2 py-1.5 text-on-surface font-body-md text-body-md focus:outline-none focus:border-rune-entity/60" />
         </div>
       </div>
       <div class="flex-1"></div>
-      <button onclick={reflow} disabled={busy || date !== today} title={date !== today ? 'Reflow applies to today only' : undefined} class="flex items-center gap-2 py-2 px-4 border border-border-default rounded text-on-surface hover:border-rune-entity/60 transition-colors font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">
+      <button onclick={reflow} disabled={busy || date !== today} title={date !== today ? 'Reflow applies to today only' : undefined} class="flex items-center gap-2 py-2 px-4 border border-border-default rounded text-on-surface hover:border-rune-entity/60 transition-colors font-label-md text-label-md disabled:opacity-40">
         <span class="material-symbols-outlined text-[18px]">refresh</span>Reflow from now
       </button>
-      <button onclick={generate} disabled={busy} class="flex items-center gap-2 py-2 px-5 bg-rune-entity/20 text-rune-entity border border-rune-entity/50 rounded hover:bg-rune-entity hover:text-bg-page transition-all font-label-md text-label-md uppercase tracking-wider disabled:opacity-40">
+      <button onclick={generate} disabled={busy} class="flex items-center gap-2 py-2 px-5 bg-rune-entity/20 text-rune-entity border border-rune-entity/50 rounded hover:bg-rune-entity hover:text-bg-page transition-all font-label-md text-label-md disabled:opacity-40">
         <span class="material-symbols-outlined text-[18px]">auto_awesome</span>{busy ? 'Weaving...' : `Generate ${label}`}
       </button>
     </div>
@@ -267,7 +267,7 @@
         <!-- the day's to-do list: list things onto a day, then generate its timetable -->
         <div class="grimoire-card rounded-lg p-3">
           <div class="flex justify-between items-baseline mb-2">
-            <h4 class="font-label-md text-label-md text-text-muted uppercase tracking-widest">To do {label}</h4>
+            <h4 class="font-label-md text-label-md text-text-muted">To do {label}</h4>
             <span class="font-label-md text-label-md text-text-tertiary">{dayTasks.filter((t) => t.status !== 'done').length} open</span>
           </div>
           <div class="flex flex-col gap-1 max-h-64 overflow-y-auto">
@@ -308,7 +308,7 @@
 
         {#if notice}
           <div transition:fly={{ y: 8, duration: dur(220), easing: quintOut }} class="bg-rune-chronicle/5 border border-rune-chronicle/30 rounded-lg p-3">
-            <p class="font-label-md text-label-md text-rune-chronicle uppercase tracking-wider flex items-center gap-1 mb-1">
+            <p class="font-label-md text-label-md text-rune-chronicle flex items-center gap-1 mb-1">
               <span class="material-symbols-outlined text-[16px]">warning</span>Gentle notice
             </p>
             <p class="font-body-sm text-body-sm text-on-surface-variant">{notice}</p>
@@ -317,7 +317,7 @@
 
         {#if deferred.length > 0}
           <div>
-            <h4 class="font-label-md text-label-md text-text-muted uppercase tracking-widest mb-2">Unscheduled pool</h4>
+            <h4 class="font-label-md text-label-md text-text-muted mb-2">Unscheduled pool</h4>
             <div class="flex flex-wrap gap-2">
               {#each deferred as d, i (i)}
                 <span in:fade={{ duration: dur(160) }} title={d.reason} class="font-body-sm text-body-sm text-on-surface-variant bg-surface-container-low/60 border border-border-subtle rounded px-2 py-1">
@@ -347,8 +347,8 @@
         <!-- templates -->
         <div class="grimoire-card rounded-lg p-3">
           <div class="flex justify-between items-center mb-2">
-            <h4 class="font-label-md text-label-md text-text-muted uppercase tracking-widest">Day-shapes</h4>
-            <button onclick={saveTemplate} class="font-label-md text-label-md text-rune-quest hover:text-primary uppercase tracking-wider">Save</button>
+            <h4 class="font-label-md text-label-md text-text-muted">Day-shapes</h4>
+            <button onclick={saveTemplate} class="font-label-md text-label-md text-rune-quest hover:text-primary">Save</button>
           </div>
           <div class="flex flex-wrap gap-2">
             {#if (flow?.templates ?? []).length === 0}<p class="font-body-sm text-body-sm text-text-tertiary">No saved shapes yet.</p>{/if}
@@ -385,7 +385,7 @@
         class="w-full max-w-sm bg-bg-panel border border-border-default rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.7)] p-5"
       >
         <div class="flex items-center justify-between mb-3">
-          <span class="font-label-md text-label-md uppercase tracking-widest text-text-muted">
+          <span class="font-label-md text-label-md text-text-muted">
             {b.goal_block ? 'Apex goal' : b.type}{b.locked ? ' · pinned' : ''}
           </span>
           <button onclick={() => (openBlock = null)} aria-label="Close"

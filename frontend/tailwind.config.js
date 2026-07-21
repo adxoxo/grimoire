@@ -1,8 +1,8 @@
 /** @type {import('tailwindcss').Config} */
-// Dark arcane grimoire — the FFXV-adjacent look: near-black violet base, gold accents,
-// four rune colours, Cinzel display + Spectral body. Tokens restored from the original
-// design (design/the_arcane_grimoire/DESIGN.md); the Svelte rewrite keeps its polish
-// (canvas constellation, animations, mobile nav), only the pigment + type come home.
+// Dark arcane grimoire, the "Scholar" cut: near-black violet base, gold accents,
+// four rune colours, Cormorant Garamond display + Spectral body. Palette restored from
+// the original design (design/the_arcane_grimoire/DESIGN.md); type and chrome retyped
+// per the Scholar direction (sentence-case labels, gentle tracking, softer radii).
 export default {
   content: ['./index.html', './src/**/*.{svelte,ts}'],
   theme: {
@@ -45,15 +45,15 @@ export default {
         'rune-entity': '#9d6bd9', // rune (entity)         → violet
         'status-error': '#ff4d4d',
       },
-      // Sharp / technical, minimal rounding for the "carved" feel. Circular accents
-      // (bars, nodes, dots) use rounded-full.
+      // Softly squared: still restrained, but the corners no longer read "carved".
+      // Circular accents (bars, nodes, dots) use rounded-full.
       borderRadius: {
         none: '0',
-        DEFAULT: '2px',
-        sm: '2px',
-        md: '3px',
-        lg: '3px',
-        xl: '4px',
+        DEFAULT: '3px',
+        sm: '3px',
+        md: '4px',
+        lg: '6px',
+        xl: '8px',
         full: '9999px',
       },
       spacing: {
@@ -67,28 +67,28 @@ export default {
         margin: '32px',
       },
       fontFamily: {
-        // Headers → Cinzel (carved-capital serif, the FFXV-logo feel).
+        // Headers → Cormorant Garamond (editorial scholarly serif, the Scholar look).
         // Body → Spectral, light weights (readability wins every conflict).
-        'display-lg': ['Cinzel', 'serif'],
-        'headline-lg': ['Cinzel', 'serif'],
-        'headline-md': ['Cinzel', 'serif'],
-        'headline-sm': ['Cinzel', 'serif'],
-        'headline-lg-mobile': ['Cinzel', 'serif'],
+        'display-lg': ['Cormorant Garamond', 'Georgia', 'serif'],
+        'headline-lg': ['Cormorant Garamond', 'Georgia', 'serif'],
+        'headline-md': ['Cormorant Garamond', 'Georgia', 'serif'],
+        'headline-sm': ['Cormorant Garamond', 'Georgia', 'serif'],
+        'headline-lg-mobile': ['Cormorant Garamond', 'Georgia', 'serif'],
         'body-lg': ['Spectral', 'serif'],
         'body-md': ['Spectral', 'serif'],
         'body-sm': ['Spectral', 'serif'],
         'label-md': ['Spectral', 'serif'],
       },
       fontSize: {
-        'display-lg': ['48px', { lineHeight: '1.1', letterSpacing: '0.05em', fontWeight: '700' }],
-        'headline-lg': ['32px', { lineHeight: '1.2', letterSpacing: '0.02em', fontWeight: '600' }],
-        'headline-md': ['24px', { lineHeight: '1.3', fontWeight: '500' }],
-        'headline-sm': ['18px', { lineHeight: '1.4', fontWeight: '600' }],
-        'headline-lg-mobile': ['28px', { lineHeight: '1.2', fontWeight: '600' }],
+        'display-lg': ['52px', { lineHeight: '1.1', letterSpacing: '0.01em', fontWeight: '700' }],
+        'headline-lg': ['35px', { lineHeight: '1.2', letterSpacing: '0.01em', fontWeight: '600' }],
+        'headline-md': ['26px', { lineHeight: '1.3', fontWeight: '500' }],
+        'headline-sm': ['20px', { lineHeight: '1.4', fontWeight: '600' }],
+        'headline-lg-mobile': ['30px', { lineHeight: '1.2', fontWeight: '600' }],
         'body-lg': ['18px', { lineHeight: '1.6', fontWeight: '300' }],
         'body-md': ['16px', { lineHeight: '1.6', fontWeight: '400' }],
         'body-sm': ['14px', { lineHeight: '1.5', fontWeight: '400' }],
-        'label-md': ['12px', { lineHeight: '1', letterSpacing: '0.1em', fontWeight: '500' }],
+        'label-md': ['12px', { lineHeight: '1', letterSpacing: '0.03em', fontWeight: '500' }],
       },
     },
   },

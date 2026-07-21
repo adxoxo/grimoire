@@ -66,7 +66,7 @@
 
 {#if error}
   <div class="p-margin">
-    <a href={link('/')} class="font-label-md text-label-md text-text-muted hover:text-primary uppercase tracking-widest">← Constellation</a>
+    <a href={link('/')} class="font-label-md text-label-md text-text-muted hover:text-primary">← Constellation</a>
     <p class="font-headline-sm text-headline-sm text-status-error mt-8">Quest line not found</p>
     <p class="font-body-sm text-body-sm text-text-tertiary mt-2">{error}</p>
   </div>
@@ -74,14 +74,14 @@
   <div class="p-margin font-headline-md text-headline-md text-text-tertiary animate-pulse">Unsealing the quest line...</div>
 {:else}
   <div class="min-h-screen overflow-y-auto px-margin py-lg">
-    <a href={link('/')} class="font-label-md text-label-md text-text-muted hover:text-primary uppercase tracking-widest inline-flex items-center gap-1">
+    <a href={link('/')} class="font-label-md text-label-md text-text-muted hover:text-primary inline-flex items-center gap-1">
       <span class="material-symbols-outlined text-[16px]">arrow_back</span> Constellation
     </a>
 
     <header class="mt-6 mb-lg flex items-center gap-3 border-b border-border-subtle pb-6">
       <span class="material-symbols-outlined text-rune-quest text-[32px]" style="filter:drop-shadow(0 0 8px #d4a93f)">account_tree</span>
       <div>
-        <span class="font-label-md text-label-md text-rune-quest uppercase tracking-widest">Active quest line</span>
+        <span class="font-label-md text-label-md text-rune-quest">Active quest line</span>
         <h1 class="font-display-lg text-display-lg text-primary leading-none">{project.title}</h1>
       </div>
     </header>
@@ -118,8 +118,8 @@
                   <div class="flex-1 min-w-0">
                     <p class="font-body-md text-body-md text-on-surface leading-tight">{t.title}</p>
                     <div class="flex items-center gap-3 mt-1">
-                      <span class="font-label-md text-[9px] uppercase px-1.5 py-0.5 rounded border" style="color:{meta.color}; border-color:{`${meta.color}4d`}">{meta.label}</span>
-                      {#if t.goal_title}<span class="font-label-md text-[9px] uppercase text-text-tertiary">→ {t.goal_title}</span>{/if}
+                      <span class="font-label-md text-[9px] px-1.5 py-0.5 rounded border" style="color:{meta.color}; border-color:{`${meta.color}4d`}">{meta.label}</span>
+                      {#if t.goal_title}<span class="font-label-md text-[9px] text-text-tertiary">→ {t.goal_title}</span>{/if}
                       {#if t.estimate_minutes}<span class="font-label-md text-[10px] text-text-tertiary">{t.estimate_minutes}m</span>{/if}
                     </div>
                   </div>
@@ -166,10 +166,10 @@
       <!-- Metadata sidebar -->
       <aside class="lg:w-72 shrink-0 space-y-lg">
         <section class="bg-bg-panel border border-border-default rounded-lg p-5">
-          <h3 class="font-label-md text-label-md text-text-muted uppercase tracking-widest mb-4">Quest metadata</h3>
+          <h3 class="font-label-md text-label-md text-text-muted mb-4">Quest metadata</h3>
           <dl class="space-y-3">
             <div class="flex items-center justify-between">
-              <dt class="font-label-md text-label-md text-text-muted uppercase tracking-wider">Status</dt>
+              <dt class="font-label-md text-label-md text-text-muted">Status</dt>
               <dd class="font-label-md text-label-md text-rune-quest flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-rune-quest" style="box-shadow:0 0 8px #d4a93f"></span>
                 {project.status}
@@ -177,7 +177,7 @@
             </div>
             {#each Object.entries(project.meta) as [k, v] (k)}
               <div class="flex items-center justify-between gap-4">
-                <dt class="font-label-md text-label-md text-text-muted uppercase tracking-wider">{humanize(k)}</dt>
+                <dt class="font-label-md text-label-md text-text-muted">{humanize(k)}</dt>
                 <dd class="font-body-sm text-body-sm text-on-surface text-right">{String(v)}</dd>
               </div>
             {/each}
@@ -185,7 +185,7 @@
         </section>
 
         <section class="bg-bg-panel border border-border-default rounded-lg p-5">
-          <h3 class="font-label-md text-label-md text-text-muted uppercase tracking-widest mb-4">Recent runes</h3>
+          <h3 class="font-label-md text-label-md text-text-muted mb-4">Recent runes</h3>
           {#if runes.length > 0}
             <ul class="space-y-2">
               {#each runes as n (n.id)}
