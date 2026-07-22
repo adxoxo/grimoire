@@ -390,6 +390,18 @@ class KnowledgeService:
         self.repo.update_node_meta(node_id, {"classification": proposal})
         return {"status": "proposed", **proposal}
 
+    @staticmethod
+    def _parse_index_choice(reply: str, candidates: list[dict]) -> str | None:
+        """Map a numbered-list reply back to a candidate index_id, or None to abstain.
+        The first integer in [1, len(candidates)] wins, so a chatty reply ("I'd file
+        this under 1)") still resolves; "NONE" and out-of-range numbers carry no valid
+        digit and abstain."""
+        for tok in re.findall(r"\d+", reply):
+            n = int(tok)
+            if 1 <= n <= len(candidates):
+                return candidates[n - 1]["index_id"]
+        return None
+
     def _filed_result(self, node_id: str, index_id: str, score: float, reason: str) -> dict:
         """File a node into an index and build the auto-classify success payload."""
         self.repo.classify_node(node_id, index_id)
@@ -404,8 +416,9 @@ class KnowledgeService:
         """Auto-file one unclassified content node into its best index. An LLM chooses
         among the top vector-ranked candidate indexes; on any LLM failure it degrades to
         the vector path (file only when the top vector score clears autofile_threshold).
-        An LLM pick is trusted even below the vector bar; an LLM that abstains blocks a
-        weak-vector auto-file. Returns
+        An LLM pick is trusted even below the vector bar; when the LLM is reached but
+        abstains it has the final say, so the item is held for review even on a high
+        vector score. Only an LLM failure falls back to the vector bar. Returns
         {"node_id", "filed", "index_id", "index", "domain", "score", "reason"}."""
         base = {"node_id": node_id, "filed": False, "index_id": None,
                 "index": None, "domain": None, "score": 0.0, "reason": ""}
@@ -441,6 +454,10 @@ class KnowledgeService:
         top = candidates[0]
 
         # LLM pick among the listed candidates (best-effort; abstains with NONE).
+        # Options are NUMBERED, not identified by their opaque 32-char id. A model
+        # reliably emits a small integer but routinely mangles a random hex string
+        # (a single dropped digit silently demoted a correct pick to "needs review"),
+        # and the small Ollama fallback model mangles it more. Parse the number back.
         llm_pick: str | None = None
         llm_consulted = False
         if use_llm and candidates:
@@ -448,28 +465,25 @@ class KnowledgeService:
                 scope = self.repo.get_node(c["index_id"])
                 c["summary"] = ((scope or {}).get("summary") or "")[:300]
             options = "\n".join(
-                f"- id={c['index_id']} | {c['index']}: {c['summary'] or '(no summary)'}"
-                for c in candidates
+                f"{n}. {c['index']}: {c['summary'] or '(no summary)'}"
+                for n, c in enumerate(candidates, start=1)
             )
             prompt = (
                 "File this note into the single most relevant index, or reply NONE if "
                 "none fit.\n\n"
                 f"Note title: {title}\n"
                 f"Note content:\n{snippet or '(no body)'}\n\n"
-                "Candidate indexes (pick exactly one id, or NONE):\n"
+                "Candidate indexes (reply with the number of the best one, or NONE):\n"
                 f"{options}\n\n"
-                "Reply with ONLY the chosen id, or NONE."
+                "Reply with ONLY the number, or NONE."
             )
             try:
                 reply = self.provider.complete(
                     prompt,
                     system="You file notes into the single best index of a knowledge base. "
-                           "Answer with one id from the list, or NONE.",
-                ).strip().lower()
-                for c in candidates:
-                    if c["index_id"].lower() in reply:
-                        llm_pick = c["index_id"]
-                        break
+                           "Answer with one number from the list, or NONE.",
+                )
+                llm_pick = self._parse_index_choice(reply, candidates)
                 llm_consulted = True
             except Exception:  # noqa: BLE001 - LLM down: fall back to the vector path
                 llm_pick = None
