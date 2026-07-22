@@ -60,7 +60,7 @@
       <span class="material-symbols-outlined text-[18px]" style="color:{rune.color}">{rune.icon}</span>
       <span class="w-1.5 h-1.5 rounded-full {node.status === 'unreviewed' ? 'svg-pulse' : ''}" style="background-color:{rune.color}; box-shadow:0 0 6px {rune.color}"></span>
     </div>
-    <p class="font-body-md text-body-md text-on-surface leading-snug">{node.title}</p>
+    <p class="font-body-md text-body-md text-on-surface leading-snug break-words">{node.title}</p>
   </div>
 {/snippet}
 
@@ -80,9 +80,9 @@
 
     <header class="mt-6 mb-lg flex items-center gap-3 border-b border-border-subtle pb-6">
       <span class="material-symbols-outlined text-rune-quest text-[32px]" style="filter:drop-shadow(0 0 8px #d4a93f)">account_tree</span>
-      <div>
+      <div class="min-w-0">
         <span class="font-label-md text-label-md text-rune-quest">Active quest line</span>
-        <h1 class="font-display-lg text-display-lg text-primary leading-none">{project.title}</h1>
+        <h1 class="font-display-lg text-display-lg text-primary leading-none break-words">{project.title}</h1>
       </div>
     </header>
 
@@ -96,7 +96,7 @@
             <h2 class="font-headline-sm text-headline-sm text-primary">Living context summary</h2>
           </div>
           <div class="px-6 py-6 max-w-[800px]">
-            <p class="font-body-lg text-body-lg text-on-surface-variant whitespace-pre-line">
+            <p class="font-body-lg text-body-lg text-on-surface-variant whitespace-pre-line break-words">
               {project.context_summary || 'No context recorded yet.'}
             </p>
           </div>
@@ -116,7 +116,7 @@
                 <div class="flex items-start gap-3 p-3 rounded bg-bg-panel border border-border-default group">
                   <button onclick={() => completeTask(t.id)} class="mt-0.5 w-4 h-4 rounded-sm border border-border-default flex-shrink-0 hover:bg-rune-quest/40 transition-colors" aria-label="Complete"></button>
                   <div class="flex-1 min-w-0">
-                    <p class="font-body-md text-body-md text-on-surface leading-tight">{t.title}</p>
+                    <p class="font-body-md text-body-md text-on-surface leading-tight break-words">{t.title}</p>
                     <div class="flex items-center gap-3 mt-1">
                       <span class="font-label-md text-[9px] px-1.5 py-0.5 rounded border" style="color:{meta.color}; border-color:{`${meta.color}4d`}">{meta.label}</span>
                       {#if t.goal_title}<span class="font-label-md text-[9px] text-text-tertiary">→ {t.goal_title}</span>{/if}
@@ -177,8 +177,8 @@
             </div>
             {#each Object.entries(project.meta) as [k, v] (k)}
               <div class="flex items-center justify-between gap-4">
-                <dt class="font-label-md text-label-md text-text-muted">{humanize(k)}</dt>
-                <dd class="font-body-sm text-body-sm text-on-surface text-right">{String(v)}</dd>
+                <dt class="font-label-md text-label-md text-text-muted shrink-0">{humanize(k)}</dt>
+                <dd class="font-body-sm text-body-sm text-on-surface text-right min-w-0 break-words">{String(v)}</dd>
               </div>
             {/each}
           </dl>
@@ -190,8 +190,8 @@
             <ul class="space-y-2">
               {#each runes as n (n.id)}
                 <li class="flex items-center gap-2 font-body-sm text-body-sm text-on-surface">
-                  <span class="material-symbols-outlined text-[16px] text-rune-entity">token</span>
-                  {n.title}
+                  <span class="material-symbols-outlined text-[16px] text-rune-entity shrink-0">token</span>
+                  <span class="min-w-0 break-words">{n.title}</span>
                 </li>
               {/each}
             </ul>
