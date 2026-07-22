@@ -11,6 +11,12 @@ if [ ! -d frontend/node_modules ]; then
   npm --prefix frontend install
 fi
 echo "building dashboard..."
-npm --prefix frontend run build
+# Rebuild every start so a code change never serves a stale bundle. But a frontend
+# build failure must not black out the backend API + MCP that agents depend on: fall
+# back to the last-good dist and still boot. Only hard-fail if there is no dist at all.
+if ! npm --prefix frontend run build; then
+  echo "dashboard build FAILED; serving the previous dist" >&2
+  [ -d frontend/dist ] || { echo "no previous dist to serve; aborting" >&2; exit 1; }
+fi
 
 exec .venv/bin/uvicorn grimoire.api:app --host 0.0.0.0 --port 8731
