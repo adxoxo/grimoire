@@ -73,6 +73,12 @@ class Settings(BaseSettings):
             self.ollama_url = _resolve_wsl_ollama_url()
         return self
 
+    # DeepSeek (optional, OpenAI-compatible). When a key is set, completion and the in-tab
+    # agent use DeepSeek first, then Groq, then Ollama. Embeddings always stay on Ollama.
+    deepseek_api_key: str = ""
+    deepseek_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-flash"
+
     # Groq (optional). When a key is set, completion uses Groq first and falls back to
     # Ollama on rate-limit/timeout. Embeddings always stay on Ollama (Groq has none).
     groq_api_key: str = ""

@@ -447,7 +447,7 @@ _provider = get_provider()
 
 
 def _groq() -> GroqProvider | None:
-    """The chat agent needs Groq tool-calling. Surface a clear error if unconfigured."""
+    """The chat agent needs OpenAI-style tool-calling (DeepSeek or Groq). Surface a clear error if unconfigured."""
     if isinstance(_provider, GroqProvider):
         return _provider
     completers = getattr(_provider, "_completers", None)
@@ -455,6 +455,9 @@ def _groq() -> GroqProvider | None:
         for c in completers:
             if isinstance(c, GroqProvider):
                 return c
+    if settings.deepseek_api_key:
+        return GroqProvider(api_key=settings.deepseek_api_key, url=settings.deepseek_url,
+                            model=settings.deepseek_model, embed_dim=settings.embed_dim)
     if settings.groq_api_key:
         return GroqProvider(api_key=settings.groq_api_key, url=settings.groq_url,
                             model=settings.groq_model, embed_dim=settings.embed_dim)
@@ -471,7 +474,7 @@ class ChatMessage(BaseModel):
 def chat(body: ChatMessage) -> dict:
     groq = _groq()
     if groq is None:
-        return {"reply": "the in-tab agent needs a Groq key configured. you can still add "
+        return {"reply": "the in-tab agent needs a DeepSeek or Groq key configured. you can still add "
                          "items with the + button, or use Claude Desktop.", "actions": [], "error": True}
     with _repo() as repo:
         return chat_router.chat(repo, groq, body.message, history=body.history, context=body.context)
